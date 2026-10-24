@@ -19,22 +19,21 @@ def load_split(name):
     return pd.read_csv(f"data/splits/{name}.csv")
 
 
-def _decode(path, label):
-    raw = tf.io.read_file(path)
-    img = tf.image.decode_image(raw, channels=3, expand_animations=False)
-    img.set_shape([None, None, 3])
-    img = tf.image.resize(img, IMG_SIZE)          # float32, values 0-255
-    return img, tf.cast(label, tf.float32)
-
-
-def make_ds(split, training=False):
+def make_ds(split, training=False, img_size=IMG_SIZE, use_aug=True):
     df = load_split(split)
+
+    def _decode(path, label):
+        raw = tf.io.read_file(path)
+        img = tf.image.decode_image(raw, channels=3, expand_animations=False)
+        img.set_shape([None, None, 3])
+        img = tf.image.resize(img, img_size)
+        return img, tf.cast(label, tf.float32)
+
     ds = tf.data.Dataset.from_tensor_slices((df["path"].values, df["label"].values))
     if training:
         ds = ds.shuffle(len(df), seed=SEED, reshuffle_each_iteration=True)
-    ds = ds.map(_decode, num_parallel_calls=AUTOTUNE)
-    ds = ds.batch(BATCH)
-    if training:   # augmentation ONLY on training data
+    ds = ds.map(_decode, num_parallel_calls=AUTOTUNE).batch(BATCH)
+    if training and use_aug:
         ds = ds.map(lambda x, y: (augment(x, training=True), y),
                     num_parallel_calls=AUTOTUNE)
     return ds.prefetch(AUTOTUNE)

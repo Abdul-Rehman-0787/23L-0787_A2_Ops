@@ -5,3 +5,8 @@ data/processed/
 *.keras
 mlruns/
 .ipynb_checkpoints/
+
+mlflow_toy.db
+mlruns/
+tuner_results/
+reports/runs/
