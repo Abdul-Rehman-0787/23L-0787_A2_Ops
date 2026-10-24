@@ -5,7 +5,6 @@ from flask import Flask
 from .config import Config
 from .db import Database
 from .icons import icon
-#from .inference import Predictor
 
 
 def create_app():
