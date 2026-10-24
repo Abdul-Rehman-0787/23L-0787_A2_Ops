@@ -1,0 +1,28 @@
+<header class="site-header fade" id="siteHeader">
+  <div class="nav glass">
+    <a class="logo" href="{{ url_for('main.index') }}">
+      <span class="logo-mark">
+        <img src="{{ url_for('static', filename='logo.jpg') }}" alt="" onerror="this.parentNode.classList.add('no-img')">
+        {{ icon('shield-check', 20) }}
+      </span>
+      <span class="logo-text">Vision<span class="grad">Guard</span></span>
+    </a>
+    <nav class="nav-links" aria-label="Main">
+      <a href="{{ url_for('main.index') }}" class="{{ 'active' if request.endpoint == 'main.index' }}">Home</a>
+      <a href="{{ url_for('main.index') }}#how">How it Works</a>
+      <a href="{{ url_for('main.history') }}" class="{{ 'active' if request.endpoint == 'main.history' }}">History</a>
+      <a href="{{ url_for('main.index') }}#api">API</a>
+    </nav>
+    <div class="nav-actions">
+      <a class="btn btn-glow" href="{{ url_for('main.index') }}#demo">{{ icon('sparkles', 15) }} Try Demo</a>
+      <button class="menu-btn" id="menuBtn" aria-label="Toggle menu" aria-expanded="false">{{ icon('menu', 20) }}</button>
+    </div>
+  </div>
+  <div class="mobile-nav glass" id="mobileNav">
+    <a href="{{ url_for('main.index') }}">Home</a>
+    <a href="{{ url_for('main.index') }}#how">How it Works</a>
+    <a href="{{ url_for('main.history') }}">History</a>
+    <a href="{{ url_for('main.index') }}#api">API</a>
+    <a href="{{ url_for('main.index') }}#demo">Try Demo</a>
+  </div>
+</header>

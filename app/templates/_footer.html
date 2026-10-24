@@ -1,0 +1,41 @@
+<footer class="site-footer">
+  <div class="footer-card glass">
+    <div class="footer-grid">
+      <div>
+        <a class="logo" href="{{ url_for('main.index') }}">
+          <span class="logo-mark">
+            <img src="{{ url_for('static', filename='logo.png') }}" alt="" onerror="this.parentNode.classList.add('no-img')">
+            {{ icon('shield-check', 20) }}
+          </span>
+          <span class="logo-text">Vision<span class="grad">Guard</span></span>
+        </a>
+        <p class="muted small">Image authenticity checks, with the confidence to back them up.</p>
+        <div class="socials">
+          <a href="https://github.com/Abdul-Rehman-0787/23L-0787_A2_Ops" target="_blank" rel="noreferrer" aria-label="GitHub">{{ icon('github', 17) }}</a>
+          <a href="https://linkedin.com/in/abdul-rehman-0787" target="_blank" rel="noreferrer" aria-label="LinkedIn">{{ icon('linkedin', 17) }}</a>
+        </div>
+      </div>
+      <div>
+        <h4>Product</h4>
+        <ul>
+          <li><a href="{{ url_for('main.index') }}">Home</a></li>
+          <li><a href="{{ url_for('main.index') }}#how">How it Works</a></li>
+          <li><a href="{{ url_for('main.history') }}">History</a></li>
+          <li><a href="{{ url_for('main.index') }}#api">API</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Project</h4>
+        <ul>
+          <li><a href="https://github.com/Abdul-Rehman-0787/23L-0787_A2_Ops" target="_blank" rel="noreferrer">GitHub</a></li>
+          <li><a href="https://dagshub.com/Abdul-Rehman-0787/23L-0787_A2_Ops" target="_blank" rel="noreferrer">DagsHub</a></li>
+          <li><a href="{{ url_for('main.health') }}">Health check</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; 2026 VisionGuard &middot; 23L-0787_A2_Ops</p>
+      <p>Estimates only. Results are not proof of origin.</p>
+    </div>
+  </div>
+</footer>

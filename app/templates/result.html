@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Result | VisionGuard{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="result-grid">
+    <div class="glass panel">
+      <div class="preview"><img src="{{ preview }}" alt="Uploaded image"></div>
+      <div class="meta"><span>{{ name }}</span><span>{{ w }}&times;{{ h }}</span></div>
+    </div>
+    <div class="glass side card" data-tone="{{ 'ai' if res.label == 'AI-generated' else 'real' }}">
+      <div class="card-top"><span class="eyebrow">Verdict</span></div>
+      <h3 class="verdict-text">{{ res.label }}</h3>
+      <p>Confidence: <strong>{{ '%.1f'|format(res.confidence * 100) }}%</strong></p>
+      <div class="bar"><span style="width: {{ res.confidence * 100 }}%"></span></div>
+      <p class="muted small">Model {{ model }} v{{ version }} &middot; threshold {{ '%.2f'|format(res.threshold) }}</p>
+      <p class="caveat">{{ icon('info', 15) }}<span>This is a statistical estimate, not proof. The model can be wrong.</span></p>
+      {% if not saved %}<p class="warn">The result could not be saved to history.</p>{% endif %}
+      <div class="card-actions">
+        <a class="btn btn-glow" href="{{ url_for('main.index') }}">Analyze another</a>
+        <a class="btn btn-ghost" href="{{ url_for('main.history') }}">View history</a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

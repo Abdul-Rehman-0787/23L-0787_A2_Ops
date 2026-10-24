@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} | VisionGuard{% endblock %}
+{% block content %}
+<section class="section narrow">
+  <div class="glass error-card">
+    <div class="err-icon">{{ icon('alert', 28) }}</div>
+    <p class="eyebrow">Error {{ code }}</p>
+    <h2>{{ title }}</h2>
+    <p class="muted">{{ message }}</p>
+    <a class="btn btn-glow" href="{{ url_for('main.index') }}">Back to upload</a>
+  </div>
+</section>
+{% endblock %}

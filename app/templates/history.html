@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}History | VisionGuard{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="section-head">
+    <p class="eyebrow cyan">History</p>
+    <h2>Prediction history</h2>
+    <p class="muted">What was decided, when, by which model, and how confidently (latest 100).</p>
+  </div>
+
+  <div class="stats">
+    <div class="glass stat"><span class="k">Total</span><span class="big">{{ stats.total }}</span></div>
+    <div class="glass stat"><span class="k">AI-generated</span><span class="big ai">{{ stats.ai }}</span></div>
+    <div class="glass stat"><span class="k">Real</span><span class="big real">{{ stats.real }}</span></div>
+    <div class="glass stat"><span class="k">Avg. confidence</span><span class="big">{{ '%.1f'|format(stats.avg) }}%</span></div>
+  </div>
+
+  {% if rows %}
+  <div class="glass table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>When (UTC)</th><th>File</th><th>Decision</th><th>Confidence</th><th>Model</th><th>Size</th><th>ms</th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <td class="muted">{{ r.id }}</td>
+          <td>{{ r.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+          <td class="fname" title="{{ r.filename }}">{{ r.filename }}</td>
+          <td><span class="badge {{ 'ai' if r.label == 'AI-generated' else 'real' }}">{{ r.label }}</span></td>
+          <td><span class="mini-bar"><i style="width: {{ r.confidence * 100 }}%"></i></span> {{ '%.1f'|format(r.confidence * 100) }}%</td>
+          <td>{{ r.model_name }} v{{ r.model_version }}</td>
+          <td>{{ r.width }}&times;{{ r.height }}</td>
+          <td>{{ '%.0f'|format(r.latency_ms) }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="glass empty">
+    <p class="muted">No predictions yet.</p>
+    <a class="btn btn-glow" href="{{ url_for('main.index') }}#demo">Analyze an image</a>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

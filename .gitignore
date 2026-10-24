@@ -10,3 +10,6 @@ mlflow_toy.db
 mlruns/
 tuner_results/
 reports/runs/
+
+instance/
+models/_tmp/
