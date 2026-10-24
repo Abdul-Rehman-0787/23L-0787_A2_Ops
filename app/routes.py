@@ -1,4 +1,9 @@
-import base64, io, logging, os, time
+import base64
+import io
+import logging
+import os
+import time
+
 from flask import Blueprint, current_app, jsonify, render_template, request
 from PIL import Image
 from werkzeug.utils import secure_filename
@@ -40,7 +45,7 @@ def validate_upload(file):
         with Image.open(io.BytesIO(data)) as im:
             fmt, (w, h) = im.format, im.size
             im.verify()
-    except Exception:
+    except (OSError, SyntaxError, ValueError):
         raise ValidationError("This file looks like an image but could not be decoded. "
                               "It may be corrupt or not really an image.") from None
     if fmt not in ALLOWED_FORMATS:

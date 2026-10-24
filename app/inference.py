@@ -1,4 +1,5 @@
 import threading
+
 import keras
 import tensorflow as tf
 
@@ -27,7 +28,9 @@ class Predictor:
 
 if __name__ == "__main__":          # python -m app.inference img1 img2
     import sys
+
     from .config import Config
+
     pred = Predictor(Config.MODEL_PATH, Config.THRESHOLD)
     for path in sys.argv[1:]:
         with open(path, "rb") as f:

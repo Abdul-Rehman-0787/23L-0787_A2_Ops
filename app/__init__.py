@@ -1,5 +1,7 @@
 import logging
+
 from flask import Flask
+
 from .config import Config
 from .db import Database
 from .icons import icon

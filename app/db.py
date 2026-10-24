@@ -1,6 +1,8 @@
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 from sqlalchemy import DateTime, Float, Integer, String, create_engine, select, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 
@@ -12,7 +14,7 @@ class Prediction(Base):
     __tablename__ = "predictions"
     id: Mapped[int] = mapped_column(primary_key=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+        DateTime(timezone=True), default=lambda: datetime.now(UTC))
     filename: Mapped[str] = mapped_column(String(255))
     label: Mapped[str] = mapped_column(String(20))          # what was decided
     confidence: Mapped[float] = mapped_column(Float)        # how confidently
@@ -51,5 +53,5 @@ class Database:
             with self.engine.connect() as c:
                 c.execute(text("SELECT 1"))
             return True
-        except Exception:
+        except SQLAlchemyError:
             return False
