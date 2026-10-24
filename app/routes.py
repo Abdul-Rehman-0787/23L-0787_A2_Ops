@@ -90,7 +90,8 @@ def analyze():
         current_app.extensions["db"].add_prediction(
             filename=name[:255], label=res["label"], confidence=res["confidence"],
             prob_ai=res["prob_ai"], threshold=res["threshold"],
-            model_name=cfg["MODEL_NAME"], model_version=str(cfg["MODEL_VERSION"]),
+            model_name=res.get("model_name") or cfg["MODEL_NAME"],
+            model_version=str(res.get("model_version") or cfg["MODEL_VERSION"]),
             width=w, height=h, file_size=len(data), latency_ms=ms)
     except Exception:
         log.exception("Could not write to the database")

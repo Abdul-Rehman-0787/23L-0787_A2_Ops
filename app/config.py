@@ -12,3 +12,7 @@ class Config:
     THRESHOLD = float(os.getenv("THRESHOLD", "0.5"))
     DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///instance/visionguard.db")
     MAX_CONTENT_LENGTH = int(os.getenv("MAX_UPLOAD_MB", "5")) * 1024 * 1024
+    INFERENCE_MODE = os.getenv("INFERENCE_MODE", "local")
+    API_URL = os.getenv("API_URL", "")
+    API_KEY = os.getenv("API_KEY", "")
+    API_TIMEOUT = int(os.getenv("API_TIMEOUT", "90"))
