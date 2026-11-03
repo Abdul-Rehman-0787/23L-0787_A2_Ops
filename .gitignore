@@ -14,3 +14,5 @@ reports/runs/
 instance/
 models/_tmp/
 models/
+api/model_quant.tflite
+api/model_quant.tflite
