@@ -3,6 +3,7 @@ import numpy as np
 from flask import Flask, jsonify, request
 from PIL import Image
 from ai_edge_litert.interpreter import Interpreter
+from preprocess import resizeBilinear
 
 meta = json.load(open("champion.json"))
 THRESHOLD = float(meta.get("threshold", 0.5))
@@ -54,8 +55,13 @@ def predict():
         return err("file is not a decodable image", 400)
     if fmt not in ALLOWED:
         return err(f"unsupported type {fmt}", 415)
+    
+    if w * h > 20_000_000:
+        return err("image too large (max 20 million pixels)", 413)
+
     t0 = time.perf_counter()
-    x = np.asarray(im.resize(SIZE, Image.BILINEAR), dtype=np.float32)[None]
+    pixels = np.asarray(im)
+    x = resizeBilinear(pixels, SIZE[1], SIZE[0])[None]
     with lock:
         interp.set_tensor(inp["index"], x)
         interp.invoke()
