@@ -1,0 +1,14 @@
+.auth-card { padding: 32px; max-width: 440px; margin: 0 auto; text-align: left; }
+.auth-card h2 { margin: 6px 0 16px; }
+.auth-form { display: flex; flex-direction: column; gap: 14px; margin-top: 18px; }
+.auth-form label { display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; }
+.auth-form input { width: 100%; padding: 12px 14px; border-radius: 12px; font: inherit; color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.06); }
+.auth-form input:focus { outline: 2px solid #5eb0ff; border-color: transparent; }
+.code-input { font-size: 1.6rem; letter-spacing: 0.5em; text-align: center; }
+.form-error { padding: 10px 14px; border-radius: 12px; margin-top: 12px;
+  background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.45); }
+.auth-links { margin-top: 14px; font-size: 0.9rem; }
+.auth-links a { text-decoration: underline; }
+.inline-form { display: inline; margin: 0; }
+.user-chip { font-size: 0.85rem; opacity: 0.8; margin-right: 8px; }

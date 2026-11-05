@@ -1,19 +1,6 @@
 import io
 
-from fastapi.testclient import TestClient
 from PIL import Image
-
-from app import createApp
-
-
-class FakePredictor:
-    def predict(self, data):
-        return {"label": "Real", "confidence": 0.9, "prob_ai": 0.1, "threshold": 0.48}
-
-
-def makeClient(tmpPath):
-    databaseUrl = "sqlite:///" + str(tmpPath / "test.db").replace("\\", "/")
-    return TestClient(createApp(databaseUrl=databaseUrl, predictor=FakePredictor()))
 
 
 def makePng():
@@ -22,32 +9,35 @@ def makePng():
     return buffer.getvalue()
 
 
-def testHealth(tmp_path):
-    response = makeClient(tmp_path).get("/health")
+def testHealth(client):
+    response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+    assert response.json()["redis"] == "ok"
 
 
-def testRejectsWrongFileType(tmp_path):
+def testRejectsWrongFileType(client, signIn):
+    signIn()
     files = {"image": ("notes.txt", b"hello", "text/plain")}
-    assert makeClient(tmp_path).post("/predict", files=files).status_code == 400
+    assert client.post("/predict", files=files).status_code == 400
 
 
-def testRejectsUndecodableImage(tmp_path):
+def testRejectsUndecodableImage(client, signIn):
+    signIn()
     files = {"image": ("fake.png", b"this is not an image", "image/png")}
-    assert makeClient(tmp_path).post("/predict", files=files).status_code == 400
+    assert client.post("/predict", files=files).status_code == 400
 
 
-def testRejectsOversizedFile(tmp_path):
-    client = makeClient(tmp_path)
+def testRejectsOversizedFile(client, signIn):
+    signIn()
     justOver = {"image": ("big.png", b"0" * (5 * 1024 * 1024 + 500_000), "image/png")}
     assert client.post("/predict", files=justOver).status_code == 413
     veryBig = {"image": ("huge.png", b"0" * (7 * 1024 * 1024), "image/png")}
     assert client.post("/predict", files=veryBig).status_code == 413
 
 
-def testValidUploadAppearsInHistory(tmp_path):
-    client = makeClient(tmp_path)
+def testValidUploadAppearsInHistory(client, signIn):
+    signIn()
     files = {"image": ("red.png", makePng(), "image/png")}
     response = client.post("/predict", files=files, headers={"X-Requested-With": "fetch"})
     assert response.status_code == 200
@@ -56,8 +46,20 @@ def testValidUploadAppearsInHistory(tmp_path):
     assert "red.png" in client.get("/history").text
 
 
-def testPagesLoad(tmp_path):
-    client = makeClient(tmp_path)
+def testUploadNeedsLogin(client):
+    files = {"image": ("red.png", makePng(), "image/png")}
+    response = client.post("/predict", files=files, headers={"X-Requested-With": "fetch"})
+    assert response.status_code == 401
+
+
+def testHistoryNeedsLogin(client):
+    response = client.get("/history", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"].startswith("/login")
+
+
+def testPagesLoad(client):
     assert client.get("/").status_code == 200
-    assert client.get("/history").status_code == 200
+    assert client.get("/login").status_code == 200
+    assert client.get("/register").status_code == 200
     assert client.get("/no-such-page").status_code == 404

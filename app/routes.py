@@ -5,13 +5,26 @@ import logging
 import os
 import time
 from typing import Annotated
+from urllib.parse import quote
 
-from fastapi import APIRouter, File, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from PIL import Image
+from redis.exceptions import RedisError
 
+from .auth import (
+    AuthError,
+    blockToken,
+    checkPassword,
+    cleanEmail,
+    hashPassword,
+    makeToken,
+    passwordMatches,
+    readToken,
+    tooManyRequests,
+)
 from .config import Config
 from .icons import icon
 
@@ -22,6 +35,7 @@ allowedExtensions = [".png", ".jpg", ".jpeg"]
 allowedFormats = ["JPEG", "PNG"]
 maxPixels = 20_000_000          # same limit as the model API
 maxBytes = Config.MAX_CONTENT_LENGTH
+cookieName = "vg_token"
 
 templateFolder = os.path.join(os.path.dirname(__file__), "templates")
 templates = Jinja2Templates(directory=templateFolder)
@@ -44,6 +58,9 @@ def flaskUrlFor(endpoint, **values):
 
 templates.env.globals["url_for"] = flaskUrlFor
 
+# Used when the email does not exist, so a wrong email and a wrong password take equally long.
+dummyHash = hashPassword("not-a-real-password")
+
 
 class AppError(Exception):
     """An error we want to show to the user as a friendly message."""
@@ -54,13 +71,62 @@ class AppError(Exception):
         self.message = message
 
 
+class LoginRequired(Exception):
+    """Raised when a page needs a logged-in user."""
+
+
 def wantsJson(request):
     return request.headers.get("x-requested-with") == "fetch"
+
+
+def clientIp(request):
+    if request.client is None:
+        return ""
+    return request.client.host
+
+
+def safeNext(value):
+    """Only allow a redirect to a page on this site."""
+    if value.startswith("/") and not value.startswith("//") and "\\" not in value:
+        return value
+    return "/"
+
+
+def getUser(request):
+    """Returns the logged-in user, or None."""
+    token = request.cookies.get(cookieName, "")
+    if token == "":
+        return None
+    payload = readToken(request.app.state.jwtSecret, token, request.app.state.redis)
+    if payload is None:
+        return None
+    user = request.app.state.db.findUserById(int(payload["sub"]))
+    if user is None or not user.is_active:
+        return None
+    request.state.tokenPayload = payload
+    return user
+
+
+def safeUser(request):
+    """Like getUser, but a Redis problem never breaks a page."""
+    try:
+        return getUser(request)
+    except Exception:
+        log.exception("Could not check the login")
+        return None
+
+
+def requireUser(request: Request):
+    user = getUser(request)
+    if user is None:
+        raise LoginRequired()
+    return user
 
 
 def render(request, pageName, context, code=200):
     request.path = request.url.path                      # Flask-style names for the templates
     request.endpoint = pathToEndpoint.get(request.url.path, "")
+    context["user"] = safeUser(request)
     return templates.TemplateResponse(request, pageName, context, status_code=code)
 
 
@@ -120,14 +186,149 @@ def thumbnailUri(data):
     return "data:image/jpeg;base64," + base64.b64encode(buffer.getvalue()).decode()
 
 
+def limitAttempts(request, key, limit, seconds):
+    if tooManyRequests(request.app.state.redis, key, limit, seconds):
+        raise AuthError("Too many attempts. Please wait a few minutes and try again.", 429)
+
+
+def sendCode(request, email, userId):
+    """Make a one-time code and queue the email that carries it."""
+    code = request.app.state.otp.issueCode(email)
+    if Config.DEV_LOG_CODES:
+        log.info("DEV ONLY: the code for %s is %s", email, code)
+    text = ("Your VisionGuard code is " + code + ". It expires in 5 minutes.\n"
+            "If you did not ask for it, you can ignore this email.")
+    try:
+        request.app.state.sendMail(email, "Your VisionGuard login code", text)
+    except Exception:
+        log.exception("Could not queue the email")
+        raise AuthError("We could not send the email right now. "
+                        "Please try again in a minute.", 503) from None
+    request.app.state.db.addEvent("otp_sent", userId, clientIp(request))
+
+
 @router.get("/")
 def index(request: Request):
     return render(request, "index.html", {})
 
 
+# ---------------------------------------------------------------- accounts
+
+@router.get("/register")
+def registerPage(request: Request):
+    return render(request, "register.html", {"error": "", "email": ""})
+
+
+@router.post("/register")
+def registerSubmit(request: Request, email: str = Form(""), password: str = Form("")):
+    db = request.app.state.db
+    try:
+        limitAttempts(request, "register-ip:" + clientIp(request), 10, 300)
+        email = cleanEmail(email)
+        password = checkPassword(password)
+        hashed = hashPassword(password)
+        user = db.createUser(email, hashed)
+        if user is None:
+            user = db.findUserByEmail(email)
+            if user.is_verified:
+                raise AuthError("An account with this email already exists. Please log in.")
+            db.updatePassword(user.id, hashed)       # never verified: the new owner may take it
+        db.addEvent("register", user.id, clientIp(request))
+        sendCode(request, email, user.id)
+    except AuthError as error:
+        return render(request, "register.html", {"error": error.message, "email": email}, error.code)
+    return RedirectResponse("/verify?email=" + quote(email), status_code=303)
+
+
+@router.get("/login")
+def loginPage(request: Request):
+    nextPage = safeNext(request.query_params.get("next", "/"))
+    return render(request, "login.html", {"error": "", "email": "", "next": nextPage})
+
+
+@router.post("/login")
+def loginSubmit(request: Request, email: str = Form(""), password: str = Form(""),
+                nextPage: str = Form("/", alias="next")):
+    db = request.app.state.db
+    nextPage = safeNext(nextPage)
+    try:
+        limitAttempts(request, "login-ip:" + clientIp(request), 10, 300)
+        email = cleanEmail(email)
+        limitAttempts(request, "login-email:" + email, 10, 900)
+        user = db.findUserByEmail(email)
+        passwordIsRight = False
+        if user is not None and user.is_active:
+            passwordIsRight = passwordMatches(password, user.password_hash)
+        else:
+            passwordMatches(password, dummyHash)     # same work whether or not the email exists
+        if not passwordIsRight:
+            userId = None
+            if user is not None:
+                userId = user.id
+            db.addEvent("login_failed", userId, clientIp(request))
+            raise AuthError("Email or password is incorrect.", 401)
+        sendCode(request, email, user.id)
+    except AuthError as error:
+        context = {"error": error.message, "email": email, "next": nextPage}
+        return render(request, "login.html", context, error.code)
+    return RedirectResponse("/verify?email=" + quote(email) + "&next=" + quote(nextPage),
+                            status_code=303)
+
+
+@router.get("/verify")
+def verifyPage(request: Request):
+    email = request.query_params.get("email", "").strip().lower()
+    nextPage = safeNext(request.query_params.get("next", "/"))
+    return render(request, "verify.html", {"error": "", "email": email, "next": nextPage})
+
+
+@router.post("/verify")
+def verifySubmit(request: Request, email: str = Form(""), code: str = Form(""),
+                 nextPage: str = Form("/", alias="next")):
+    db = request.app.state.db
+    nextPage = safeNext(nextPage)
+    context = {"error": "", "email": email, "next": nextPage}
+    try:
+        limitAttempts(request, "verify-ip:" + clientIp(request), 20, 300)
+        email = cleanEmail(email)
+        context["email"] = email
+        request.app.state.otp.checkCode(email, code)
+    except AuthError as error:
+        db.addEvent("otp_failed", None, clientIp(request))
+        context["error"] = error.message
+        return render(request, "verify.html", context, error.code)
+
+    user = db.findUserByEmail(email)
+    if user is None or not user.is_active:
+        context["error"] = "This account cannot log in."
+        return render(request, "verify.html", context, 400)
+    db.recordLogin(user.id)
+    db.addEvent("login_ok", user.id, clientIp(request))
+    token = makeToken(request.app.state.jwtSecret, user.id, Config.JWT_MINUTES)
+    response = RedirectResponse(nextPage, status_code=303)
+    response.set_cookie(cookieName, token, max_age=Config.JWT_MINUTES * 60, httponly=True,
+                        samesite="lax", secure=Config.COOKIE_SECURE)
+    return response
+
+
+@router.post("/logout")
+def logout(request: Request):
+    user = safeUser(request)
+    payload = getattr(request.state, "tokenPayload", None)
+    if user is not None and payload is not None:
+        blockToken(request.app.state.redis, payload)
+        request.app.state.db.addEvent("logout", user.id, clientIp(request))
+    response = RedirectResponse("/", status_code=303)
+    response.delete_cookie(cookieName)
+    return response
+
+
+# ---------------------------------------------------------------- the product
+
 @router.post("/predict")
 async def analyze(
     request: Request,
+    user: Annotated[object, Depends(requireUser)],
     image: Annotated[UploadFile | None, File()] = None,
 ):
     fileName = ""
@@ -152,7 +353,7 @@ async def analyze(
     try:
         await run_in_threadpool(
             request.app.state.db.add_prediction,
-            filename=safeName[:255], image_sha256=imageHash,
+            user_id=user.id, filename=safeName[:255], image_sha256=imageHash,
             label=result["label"], confidence=result["confidence"],
             prob_ai=result["prob_ai"], threshold=result["threshold"],
             model_name=result.get("model_name") or config.MODEL_NAME,
@@ -176,8 +377,8 @@ async def analyze(
 
 
 @router.get("/history")
-def history(request: Request):
-    rows = request.app.state.db.recent(100)
+def history(request: Request, user: Annotated[object, Depends(requireUser)]):
+    rows = request.app.state.db.recent(100, userId=user.id)
     total = len(rows)
     aiCount = 0
     confidenceSum = 0.0
@@ -192,11 +393,19 @@ def history(request: Request):
     return render(request, "history.html", {"rows": rows, "stats": stats})
 
 
+def redisIsUp(request):
+    try:
+        return bool(request.app.state.redis.ping())
+    except (AttributeError, RedisError, TypeError, ValueError):
+        return False
+
+
 @router.get("/health")
 def health(request: Request):
     databaseOk = request.app.state.db.ping()
     config = request.app.state.config
     body = {"status": "ok" if databaseOk else "degraded", "model_loaded": True,
             "model": config.MODEL_NAME, "model_version": str(config.MODEL_VERSION),
-            "threshold": config.THRESHOLD, "database": "ok" if databaseOk else "error"}
+            "threshold": config.THRESHOLD, "database": "ok" if databaseOk else "error",
+            "redis": "ok" if redisIsUp(request) else "error"}
     return JSONResponse(body, status_code=200 if databaseOk else 503)

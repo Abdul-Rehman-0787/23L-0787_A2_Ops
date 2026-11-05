@@ -1,13 +1,18 @@
 import logging
 import os
+import secrets
+from urllib.parse import quote
 
+import redis
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from .auth import OtpService
 from .config import Config
 from .db import Database
-from .routes import AppError, failResponse, maxBytes, router
+from .routes import AppError, LoginRequired, failResponse, maxBytes, router, wantsJson
 
 
 def buildPredictor():
@@ -21,12 +26,31 @@ def buildPredictor():
     return Predictor(Config.MODEL_PATH, Config.THRESHOLD)
 
 
-def createApp(databaseUrl=None, predictor=None):
+def pickSecret(value, name):
+    if len(value) >= 32:
+        return value
+    logging.getLogger("visionguard").warning(
+        "%s is missing or shorter than 32 characters: using a temporary random key "
+        "(sessions end when the server restarts).", name)
+    return secrets.token_urlsafe(48)
+
+
+def queueEmail(toAddress, subject, bodyText):
+    """Hands the email to the Celery worker, so the page does not wait for the mail server."""
+    from .tasks import sendEmail
+    sendEmail.delay(toAddress, subject, bodyText)
+
+
+def createApp(databaseUrl=None, predictor=None, redisClient=None, mailSender=None):
     logging.basicConfig(level=logging.INFO)
     app = FastAPI(title="VisionGuard")
     app.state.config = Config
     app.state.db = Database(databaseUrl or Config.DATABASE_URL)
     app.state.predictor = predictor or buildPredictor()
+    app.state.redis = redisClient or redis.Redis.from_url(Config.REDIS_URL, decode_responses=True)
+    app.state.jwtSecret = pickSecret(Config.JWT_SECRET, "JWT_SECRET")
+    app.state.otp = OtpService(app.state.redis, pickSecret(Config.OTP_SECRET, "OTP_SECRET"))
+    app.state.sendMail = mailSender or queueEmail
 
     staticFolder = os.path.join(os.path.dirname(__file__), "static")
     app.mount("/static", StaticFiles(directory=staticFolder), name="static")
@@ -41,6 +65,13 @@ def createApp(databaseUrl=None, predictor=None):
             return failResponse(request, 413, "File too large",
                                 "The file is larger than the " + str(megabytes) + " MB limit.")
         return await callNext(request)
+
+    @app.exception_handler(LoginRequired)
+    async def handleLoginRequired(request: Request, error: LoginRequired):
+        if wantsJson(request):
+            return JSONResponse({"error": "Please log in to analyse images.",
+                                 "title": "Login required"}, status_code=401)
+        return RedirectResponse("/login?next=" + quote(request.url.path), status_code=303)
 
     @app.exception_handler(AppError)
     async def handleAppError(request: Request, error: AppError):

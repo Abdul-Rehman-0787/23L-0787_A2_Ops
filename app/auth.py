@@ -88,6 +88,7 @@ class OtpService:
         if saved is None:
             raise AuthError("That code has expired. Please log in again.")
         if hmac.compare_digest(saved, hashCode(self.secret, email, (code or "").strip())):
+            self.redis.delete("otp_cool:" + email)
             self.redis.delete("otp:" + email)               # one-time use
             self.redis.delete("otp_tries:" + email)
             return True

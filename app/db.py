@@ -118,6 +118,13 @@ class Database:
         with self.Session() as s:
             return s.get(User, userId)
 
+    def updatePassword(self, userId, passwordHash):
+        with self.Session() as s:
+            user = s.get(User, userId)
+            if user is not None:
+                user.password_hash = passwordHash
+                s.commit()
+
     def recordLogin(self, userId):
         with self.Session() as s:
             user = s.get(User, userId)

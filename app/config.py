@@ -24,3 +24,5 @@ class Config:
     SMTP_HOST = os.getenv("SMTP_HOST", "localhost")
     SMTP_PORT = int(os.getenv("SMTP_PORT", "1025"))
     MAIL_FROM = os.getenv("MAIL_FROM", "VisionGuard <noreply@visionguard.local>")
+    COOKIE_SECURE = os.getenv("COOKIE_SECURE", "0") == "1"
+    DEV_LOG_CODES = os.getenv("DEV_LOG_CODES", "0") == "1"
