@@ -54,3 +54,10 @@ def testValidUploadAppearsInHistory(tmp_path):
     assert response.json()["label"] == "Real"
     assert response.json()["saved"] is True
     assert "red.png" in client.get("/history").text
+
+
+def testPagesLoad(tmp_path):
+    client = makeClient(tmp_path)
+    assert client.get("/").status_code == 200
+    assert client.get("/history").status_code == 200
+    assert client.get("/no-such-page").status_code == 404

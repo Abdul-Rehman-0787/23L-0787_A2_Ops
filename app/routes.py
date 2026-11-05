@@ -26,6 +26,7 @@ maxBytes = Config.MAX_CONTENT_LENGTH
 templateFolder = os.path.join(os.path.dirname(__file__), "templates")
 templates = Jinja2Templates(directory=templateFolder)
 templates.env.globals["icon"] = icon
+templates.env.globals["config"] = Config
 
 # Your templates were written for Flask. These two small helpers keep them working.
 pathToEndpoint = {"/": "main.index", "/predict": "main.analyze",
