@@ -10,3 +10,8 @@ httpx==0.28.1
 sqlalchemy==2.1.5
 python-dotenv==1.2.4
 psycopg2-binary==2.9.10
+redis==8.1.0
+PyJWT==2.15.1
+bcrypt==5.0.0
+celery==5.6.3
+alembic==1.20.0
