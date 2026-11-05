@@ -14,6 +14,7 @@ from fastapi.templating import Jinja2Templates
 from PIL import Image
 from redis.exceptions import RedisError
 
+from .artist import buildMessages, maxQuestionLength
 from .auth import (
     AuthError,
     blockToken,
@@ -27,6 +28,7 @@ from .auth import (
 )
 from .config import Config
 from .icons import icon
+from .llm import LlmError
 
 router = APIRouter()
 log = logging.getLogger("visionguard")
@@ -250,11 +252,12 @@ def loginPage(request: Request):
 def loginSubmit(request: Request, email: str = Form(""), password: str = Form(""),
                 nextPage: str = Form("/", alias="next")):
     db = request.app.state.db
+    guard = request.app.state.loginGuard
     nextPage = safeNext(nextPage)
     try:
         limitAttempts(request, "login-ip:" + clientIp(request), 10, 300)
         email = cleanEmail(email)
-        limitAttempts(request, "login-email:" + email, 10, 900)
+        guard.checkNotLocked(email)
         user = db.findUserByEmail(email)
         passwordIsRight = False
         if user is not None and user.is_active:
@@ -266,7 +269,11 @@ def loginSubmit(request: Request, email: str = Form(""), password: str = Form(""
             if user is not None:
                 userId = user.id
             db.addEvent("login_failed", userId, clientIp(request))
+            if guard.recordFailure(email):
+                db.addEvent("login_locked", userId, clientIp(request))
+                raise AuthError("Too many wrong passwords. Please try again in 15 minutes.", 429)
             raise AuthError("Email or password is incorrect.", 401)
+        guard.recordSuccess(email)
         sendCode(request, email, user.id)
     except AuthError as error:
         context = {"error": error.message, "email": email, "next": nextPage}
@@ -391,6 +398,47 @@ def history(request: Request, user: Annotated[object, Depends(requireUser)]):
         average = confidenceSum / total * 100
     stats = {"total": total, "ai": aiCount, "real": total - aiCount, "avg": average}
     return render(request, "history.html", {"rows": rows, "stats": stats})
+
+@router.get("/artist")
+def artistPage(request: Request, user: Annotated[object, Depends(requireUser)]):
+    messages = request.app.state.db.recentChat(user.id, 30)
+    return render(request, "artist.html", {"messages": messages, "maxLength": maxQuestionLength})
+
+
+@router.post("/artist/ask")
+async def artistAsk(request: Request, user: Annotated[object, Depends(requireUser)]):
+    try:
+        body = await request.json()
+    except ValueError:
+        body = {}
+    question = ""
+    if isinstance(body, dict):
+        question = str(body.get("question", "")).strip()
+    if question == "":
+        raise AppError(400, "Empty question", "Please type a question for Artist.")
+    if len(question) > maxQuestionLength:
+        raise AppError(400, "Question too long",
+                       "Please keep your question under " + str(maxQuestionLength) + " characters.")
+    if tooManyRequests(request.app.state.redis, "artist-user:" + str(user.id), 20, 600):
+        raise AppError(429, "Slow down", "You have asked many questions. Please wait a few minutes.")
+
+    db = request.app.state.db
+    scans = await run_in_threadpool(db.recent, 5, user.id)
+    memory = await run_in_threadpool(db.recentChat, user.id, 6)
+    messages = buildMessages(scans, memory, question)
+    try:
+        answer = await run_in_threadpool(request.app.state.llm.chat, messages)
+    except LlmError as error:
+        raise AppError(503, "Artist is offline", str(error)) from None
+    await run_in_threadpool(db.addChat, user.id, "user", question)
+    await run_in_threadpool(db.addChat, user.id, "assistant", answer)
+    return JSONResponse({"answer": answer})
+
+
+@router.post("/artist/clear")
+def artistClear(request: Request, user: Annotated[object, Depends(requireUser)]):
+    request.app.state.db.deleteChat(user.id)
+    return RedirectResponse("/artist", status_code=303)
 
 
 def redisIsUp(request):

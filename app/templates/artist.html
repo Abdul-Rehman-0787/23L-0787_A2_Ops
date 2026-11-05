@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Artist | VisionGuard{% endblock %}
+{% block content %}
+<section class="section narrow">
+  <div class="glass artist-card">
+    <p class="eyebrow">Artist</p>
+    <h2>Ask about your results</h2>
+    <p class="muted">Artist is an AI assistant running on a local model. Its answers can be wrong, and a VisionGuard
+      verdict is an estimate, not proof. It only sees your last 5 results as text, never your images.</p>
+    <div class="chat-log" id="chatLog">
+      {% for message in messages %}
+        <div class="bubble {{ message.role }}">{{ message.content }}</div>
+      {% endfor %}
+    </div>
+    <form id="askForm" class="chat-form">
+      <input id="askInput" type="text" maxlength="{{ maxLength }}" required
+             placeholder="For example: what does my last result mean?" autocomplete="off">
+      <button id="askButton" class="btn btn-glow" type="submit">Ask</button>
+    </form>
+    <form method="post" action="/artist/clear" class="clear-form">
+      <button class="btn" type="submit">Clear chat</button>
+    </form>
+  </div>
+</section>
+<script>
+  const chatLog = document.getElementById("chatLog");
+  const askForm = document.getElementById("askForm");
+  const askInput = document.getElementById("askInput");
+  const askButton = document.getElementById("askButton");
+
+  function addBubble(role, text) {
+    const bubble = document.createElement("div");
+    bubble.className = "bubble " + role;
+    bubble.textContent = text;            // text only, so the AI's answer can never inject HTML
+    chatLog.appendChild(bubble);
+    chatLog.scrollTop = chatLog.scrollHeight;
+    return bubble;
+  }
+
+  askForm.addEventListener("submit", async function (event) {
+    event.preventDefault();
+    const question = askInput.value.trim();
+    if (question === "") { return; }
+    addBubble("user", question);
+    askInput.value = "";
+    askButton.disabled = true;
+    const waiting = addBubble("assistant", "Artist is thinking...");
+    try {
+      const response = await fetch("/artist/ask", {
+        method: "POST",
+        headers: {"Content-Type": "application/json", "X-Requested-With": "fetch"},
+        body: JSON.stringify({question: question})
+      });
+      const data = await response.json();
+      waiting.textContent = response.ok ? data.answer : data.error;
+    } catch (error) {
+      waiting.textContent = "Could not reach the server. Please try again.";
+    }
+    askButton.disabled = false;
+    chatLog.scrollTop = chatLog.scrollHeight;
+  });
+  chatLog.scrollTop = chatLog.scrollHeight;
+</script>
+{% endblock %}

@@ -129,3 +129,30 @@ def tooManyRequests(redisClient, name, limit, seconds):
     if count == 1:
         redisClient.expire(key, seconds)
     return count > limit
+
+
+class LoginGuard:
+    """Counts wrong passwords per email. 5 wrong passwords lock the email for 15 minutes."""
+
+    maxTries = 5
+    lockSeconds = 900
+
+    def __init__(self, redisClient):
+        self.redis = redisClient
+
+    def checkNotLocked(self, email):
+        if self.redis.exists("login_lock:" + email):
+            raise AuthError("Too many wrong passwords. Please try again in 15 minutes.", 429)
+
+    def recordFailure(self, email):
+        """Returns True if this failure locked the email."""
+        tries = self.redis.incr("login_tries:" + email)
+        self.redis.expire("login_tries:" + email, self.lockSeconds)
+        if tries >= self.maxTries:
+            self.redis.set("login_lock:" + email, "1", ex=self.lockSeconds)
+            self.redis.delete("login_tries:" + email)
+            return True
+        return False
+
+    def recordSuccess(self, email):
+        self.redis.delete("login_tries:" + email)

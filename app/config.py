@@ -26,3 +26,8 @@ class Config:
     MAIL_FROM = os.getenv("MAIL_FROM", "VisionGuard <noreply@visionguard.local>")
     COOKIE_SECURE = os.getenv("COOKIE_SECURE", "0") == "1"
     DEV_LOG_CODES = os.getenv("DEV_LOG_CODES", "0") == "1"
+    LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama")
+    OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
+    OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
+    LLM_TIMEOUT = int(os.getenv("LLM_TIMEOUT", "120"))
+    LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "300"))

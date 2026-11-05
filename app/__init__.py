@@ -9,9 +9,10 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from .auth import OtpService
+from .auth import LoginGuard, OtpService
 from .config import Config
 from .db import Database
+from .llm import OllamaLlm
 from .routes import AppError, LoginRequired, failResponse, maxBytes, router, wantsJson
 
 
@@ -25,6 +26,8 @@ def buildPredictor():
     log.info("Inference mode: LOCAL (%s)", Config.MODEL_PATH)
     return Predictor(Config.MODEL_PATH, Config.THRESHOLD)
 
+def buildLlm():
+    return OllamaLlm(Config.OLLAMA_URL, Config.OLLAMA_MODEL, Config.LLM_TIMEOUT, Config.LLM_MAX_TOKENS)
 
 def pickSecret(value, name):
     if len(value) >= 32:
@@ -41,7 +44,7 @@ def queueEmail(toAddress, subject, bodyText):
     sendEmail.delay(toAddress, subject, bodyText)
 
 
-def createApp(databaseUrl=None, predictor=None, redisClient=None, mailSender=None):
+def createApp(databaseUrl=None, predictor=None, redisClient=None, mailSender=None, llm=None):
     logging.basicConfig(level=logging.INFO)
     app = FastAPI(title="VisionGuard")
     app.state.config = Config
@@ -50,7 +53,9 @@ def createApp(databaseUrl=None, predictor=None, redisClient=None, mailSender=Non
     app.state.redis = redisClient or redis.Redis.from_url(Config.REDIS_URL, decode_responses=True)
     app.state.jwtSecret = pickSecret(Config.JWT_SECRET, "JWT_SECRET")
     app.state.otp = OtpService(app.state.redis, pickSecret(Config.OTP_SECRET, "OTP_SECRET"))
+    app.state.loginGuard = LoginGuard(app.state.redis)
     app.state.sendMail = mailSender or queueEmail
+    app.state.llm = llm or buildLlm()
 
     staticFolder = os.path.join(os.path.dirname(__file__), "static")
     app.mount("/static", StaticFiles(directory=staticFolder), name="static")

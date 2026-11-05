@@ -8,7 +8,9 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    Text,
     create_engine,
+    delete,
     select,
     text,
 )
@@ -61,6 +63,14 @@ class Prediction(Base):
     height: Mapped[int] = mapped_column(Integer)
     file_size: Mapped[int] = mapped_column(Integer)
     latency_ms: Mapped[float] = mapped_column(Float)
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    role: Mapped[str] = mapped_column(String(10))
+    content: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcNow)
 
 
 def runMigrations(url):
@@ -137,6 +147,27 @@ class Database:
         with self.Session() as s:
             s.add(AuthEvent(event=event, user_id=userId, ip=ip[:45]))
             s.commit()
+
+
+    def addChat(self, userId, role, content):
+        with self.Session() as s:
+            s.add(ChatMessage(user_id=userId, role=role, content=content[:4000]))
+            s.commit()
+
+    def recentChat(self, userId, limit=30):
+        """The user's latest messages, oldest first."""
+        with self.Session() as s:
+            query = (select(ChatMessage).where(ChatMessage.user_id == userId)
+                     .order_by(ChatMessage.id.desc()).limit(limit))
+            rows = list(s.scalars(query))
+        rows.reverse()
+        return rows
+
+    def deleteChat(self, userId):
+        with self.Session() as s:
+            s.execute(delete(ChatMessage).where(ChatMessage.user_id == userId))
+            s.commit()
+
 
     def ping(self):
         try:

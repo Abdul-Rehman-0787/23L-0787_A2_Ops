@@ -81,3 +81,31 @@ def testNextCannotLeaveTheSite():
     assert safeNext("//evil.example") == "/"
     assert safeNext("https://evil.example") == "/"
     assert safeNext("/\\evil.example") == "/"
+
+def testFivePasswordMistakesLockTheAccount(client, signIn):
+    signIn()
+    client.post("/logout")
+    wrongData = {"email": "user@example.com", "password": "wrong password"}
+    for _ in range(4):
+        assert client.post("/login", data=wrongData).status_code == 401
+    assert client.post("/login", data=wrongData).status_code == 429
+    rightData = {"email": "user@example.com", "password": "correct horse"}
+    assert client.post("/login", data=rightData).status_code == 429     # still locked
+
+
+def testCorrectPasswordResetsTheCounter(client, signIn):
+    signIn()
+    client.post("/logout")
+    wrongData = {"email": "user@example.com", "password": "wrong password"}
+    rightData = {"email": "user@example.com", "password": "correct horse"}
+    for _ in range(4):
+        assert client.post("/login", data=wrongData).status_code == 401
+    assert client.post("/login", data=rightData, follow_redirects=False).status_code == 303
+    for _ in range(4):
+        assert client.post("/login", data=wrongData).status_code == 401
+
+
+def testUnknownEmailIsCountedToo(client):
+    data = {"email": "nobody@example.com", "password": "wrong password"}
+    codes = [client.post("/login", data=data).status_code for _ in range(5)]
+    assert codes == [401, 401, 401, 401, 429]

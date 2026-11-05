@@ -12,3 +12,12 @@
 .auth-links a { text-decoration: underline; }
 .inline-form { display: inline; margin: 0; }
 .user-chip { font-size: 0.85rem; opacity: 0.8; margin-right: 8px; }
+.artist-card { padding: 28px; max-width: 760px; margin: 0 auto; text-align: left; }
+.chat-log { display: flex; flex-direction: column; gap: 10px; margin: 18px 0; max-height: 420px; overflow-y: auto; }
+.bubble { padding: 10px 14px; border-radius: 14px; max-width: 85%; white-space: pre-wrap; line-height: 1.45; }
+.bubble.user { align-self: flex-end; background: rgba(94, 176, 255, 0.22); }
+.bubble.assistant { align-self: flex-start; background: rgba(255, 255, 255, 0.08); }
+.chat-form { display: flex; gap: 10px; }
+.chat-form input { flex: 1; padding: 12px 14px; border-radius: 12px; font: inherit; color: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.06); }
+.clear-form { margin-top: 12px; }

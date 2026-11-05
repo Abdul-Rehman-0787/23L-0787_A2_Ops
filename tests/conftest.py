@@ -38,20 +38,37 @@ class FakePredictor:
         return {"label": "Real", "confidence": 0.9, "prob_ai": 0.1, "threshold": 0.48}
 
 
+class FakeLlm:
+    def __init__(self):
+        self.lastMessages = None
+        self.error = ""
+
+    def chat(self, messages):
+        from app.llm import LlmError
+        self.lastMessages = messages
+        if self.error:
+            raise LlmError(self.error)
+        return "Fake answer"
+
+    
 @pytest.fixture
 def mails():
     return []
 
+@pytest.fixture
+def llm():
+    return FakeLlm()
+
 
 @pytest.fixture
-def client(tmp_path, mails):
+def client(tmp_path, mails, llm):
     databaseUrl = "sqlite:///" + str(tmp_path / "test.db").replace("\\", "/")
 
     def collectMail(toAddress, subject, bodyText):
         mails.append({"to": toAddress, "subject": subject, "body": bodyText})
 
     app = createApp(databaseUrl=databaseUrl, predictor=FakePredictor(),
-                    redisClient=FakeRedis(), mailSender=collectMail)
+                    redisClient=FakeRedis(), mailSender=collectMail, llm=llm)
     return TestClient(app)
 
 

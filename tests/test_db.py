@@ -9,7 +9,7 @@ def makeDb(tmpPath):
 
 def testMigrationCreatesTables(tmp_path):
     names = inspect(makeDb(tmp_path).engine).get_table_names()
-    for table in ["users", "auth_events", "predictions", "alembic_version"]:
+    for table in ["users", "auth_events", "predictions", "chat_messages", "alembic_version"]:
         assert table in names
 
 

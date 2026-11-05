@@ -11,6 +11,7 @@
       <a href="{{ url_for('main.index') }}" class="{{ 'active' if request.endpoint == 'main.index' }}">Home</a>
       <a href="{{ url_for('main.index') }}#how">How it Works</a>
       <a href="{{ url_for('main.history') }}" class="{{ 'active' if request.endpoint == 'main.history' }}">History</a>
+      {% if user %}<a href="/artist" class="{{ 'active' if request.endpoint == 'main.artist' }}">Artist</a>{% endif %}
       <a href="{{ url_for('main.index') }}#api">API</a>
     </nav>
       <div class="nav-actions">
@@ -28,6 +29,7 @@
     <a href="{{ url_for('main.index') }}">Home</a>
     <a href="{{ url_for('main.index') }}#how">How it Works</a>
     <a href="{{ url_for('main.history') }}">History</a>
+    {% if user %}<a href="/artist">Artist</a>{% endif %}
     <a href="{{ url_for('main.index') }}#api">API</a>
     <a href="{{ url_for('main.index') }}#demo">
       {% if user %}
