@@ -16,6 +16,7 @@ class Prediction(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC))
     filename: Mapped[str] = mapped_column(String(255))
+    image_sha256: Mapped[str] = mapped_column(String(64), default="")
     label: Mapped[str] = mapped_column(String(20))          # what was decided
     confidence: Mapped[float] = mapped_column(Float)        # how confidently
     prob_ai: Mapped[float] = mapped_column(Float)

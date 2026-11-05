@@ -1,149 +1,201 @@
 import base64
+import hashlib
 import io
 import logging
 import os
 import time
+from typing import Annotated
 
-from flask import Blueprint, current_app, jsonify, render_template, request
+from fastapi import APIRouter, File, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import JSONResponse
+from fastapi.templating import Jinja2Templates
 from PIL import Image
-from werkzeug.utils import secure_filename
 
-bp = Blueprint("main", __name__)
+from .config import Config
+from .icons import icon
+
+router = APIRouter()
 log = logging.getLogger("visionguard")
 
-ALLOWED_EXT = {".png", ".jpg", ".jpeg"}
-ALLOWED_FORMATS = {"JPEG", "PNG"}
-MAX_PIXELS = 40_000_000
+allowedExtensions = [".png", ".jpg", ".jpeg"]
+allowedFormats = ["JPEG", "PNG"]
+maxPixels = 20_000_000          # same limit as the model API
+maxBytes = Config.MAX_CONTENT_LENGTH
+
+templateFolder = os.path.join(os.path.dirname(__file__), "templates")
+templates = Jinja2Templates(directory=templateFolder)
+templates.env.globals["icon"] = icon
+
+# Your templates were written for Flask. These two small helpers keep them working.
+pathToEndpoint = {"/": "main.index", "/predict": "main.analyze",
+                  "/history": "main.history", "/health": "main.health"}
 
 
-class ValidationError(Exception):
-    pass
+def flaskUrlFor(endpoint, **values):
+    if endpoint == "static":
+        return "/static/" + str(values.get("filename", ""))
+    for path, mapped_endpoint in pathToEndpoint.items():
+        if mapped_endpoint == endpoint:
+            return path
+    return "/"
 
 
-def wants_json():
-    return request.headers.get("X-Requested-With") == "fetch"
+templates.env.globals["url_for"] = flaskUrlFor
 
 
-def fail(code, title, message):
+class AppError(Exception):
+    """An error we want to show to the user as a friendly message."""
+
+    def __init__(self, code, title, message):
+        self.code = code
+        self.title = title
+        self.message = message
+
+
+def wantsJson(request):
+    return request.headers.get("x-requested-with") == "fetch"
+
+
+def render(request, pageName, context, code=200):
+    request.path = request.url.path                      # Flask-style names for the templates
+    request.endpoint = pathToEndpoint.get(request.url.path, "")
+    return templates.TemplateResponse(request, pageName, context, status_code=code)
+
+
+def failResponse(request, code, title, message):
     """Friendly error: JSON for the page's JavaScript, an HTML page otherwise."""
-    if wants_json():
-        return jsonify({"error": message, "title": title}), code
-    return render_template("error.html", code=code, title=title, message=message), code
+    if wantsJson(request):
+        return JSONResponse({"error": message, "title": title}, status_code=code)
+    return render(request, "error.html", {"code": code, "title": title, "message": message}, code)
 
 
-def validate_upload(file):
-    if file is None or not file.filename:
-        raise ValidationError("No file was selected. Please choose an image.")
-    ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in ALLOWED_EXT:
-        raise ValidationError("Unsupported file type. Please upload a JPG or PNG image.")
-    safe_name = secure_filename(file.filename) or f"upload{ext}"   # sanitize the name
-    data = file.read()                                             # stays in memory only
-    if not data:
-        raise ValidationError("The uploaded file is empty.")
+def cleanFilename(name):
+    """Keep only the file name (no folders) and safe characters."""
+    name = name.replace("\\", "/").split("/")[-1]
+    cleaned = ""
+    for character in name:
+        if character.isalnum() or character in "._-":
+            cleaned = cleaned + character
+        else:
+            cleaned = cleaned + "_"
+    return cleaned.strip("._")[:255]
+
+
+def checkUpload(fileName, data):
+    title = "We couldn't use that file"
+    if not fileName:
+        raise AppError(400, title, "No file was selected. Please choose an image.")
+    extension = os.path.splitext(fileName)[1].lower()
+    if extension not in allowedExtensions:
+        raise AppError(400, title, "Unsupported file type. Please upload a JPG or PNG image.")
+    safeName = cleanFilename(fileName) or "upload" + extension
+    if len(data) == 0:
+        raise AppError(400, title, "The uploaded file is empty.")
+    if len(data) > maxBytes:
+        megabytes = maxBytes // (1024 * 1024)
+        raise AppError(413, "File too large", "The file is larger than the " + str(megabytes) + " MB limit.")
     try:
-        with Image.open(io.BytesIO(data)) as im:
-            fmt, (w, h) = im.format, im.size
-            im.verify()
+        with Image.open(io.BytesIO(data)) as image:
+            imageFormat = image.format
+            width, height = image.size
+            image.verify()
     except (OSError, SyntaxError, ValueError):
-        raise ValidationError("This file looks like an image but could not be decoded. "
-                              "It may be corrupt or not really an image.") from None
-    if fmt not in ALLOWED_FORMATS:
-        raise ValidationError("The file content is not a JPG or PNG image.")
-    if w * h > MAX_PIXELS:
-        raise ValidationError("The image has too many pixels. Please upload a smaller one.")
-    return safe_name, data, w, h
+        raise AppError(400, title, "This file looks like an image but could not be decoded. "
+                                   "It may be corrupt or not really an image.") from None
+    if imageFormat not in allowedFormats:
+        raise AppError(400, title, "The file content is not a JPG or PNG image.")
+    if width * height > maxPixels:
+        raise AppError(400, title, "The image has too many pixels. Please upload a smaller one.")
+    return safeName, width, height
 
 
-def thumbnail_uri(data):
-    with Image.open(io.BytesIO(data)) as im:
-        im = im.convert("RGB")
-        im.thumbnail((480, 480))
-        buf = io.BytesIO()
-        im.save(buf, "JPEG", quality=85)
-    return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+def thumbnailUri(data):
+    with Image.open(io.BytesIO(data)) as image:
+        image = image.convert("RGB")
+        image.thumbnail((480, 480))
+        buffer = io.BytesIO()
+        image.save(buffer, "JPEG", quality=85)
+    return "data:image/jpeg;base64," + base64.b64encode(buffer.getvalue()).decode()
 
 
-@bp.route("/")
-def index():
-    return render_template("index.html")
+@router.get("/")
+def index(request: Request):
+    return render(request, "index.html", {})
 
 
-@bp.route("/predict", methods=["POST"])
-def analyze():
+@router.post("/predict")
+async def analyze(
+    request: Request,
+    image: Annotated[UploadFile | None, File()] = None,
+):
+    fileName = ""
+    data = b""
+    if image is not None:
+        fileName = image.filename or ""
+        data = await image.read(maxBytes + 1)            # stops reading just past the limit
+    safeName, width, height = checkUpload(fileName, data)
+    imageHash = hashlib.sha256(data).hexdigest()
+
+    startTime = time.perf_counter()
     try:
-        name, data, w, h = validate_upload(request.files.get("image"))
-    except ValidationError as e:
-        return fail(400, "We couldn't use that file", str(e))
-
-    t0 = time.perf_counter()
-    try:
-        res = current_app.extensions["predictor"].predict(data)
+        result = await run_in_threadpool(request.app.state.predictor.predict, data)
     except Exception:
         log.exception("Inference failed")
-        return fail(500, "Analysis failed", "Something went wrong while analysing the image.")
-    ms = (time.perf_counter() - t0) * 1000
+        raise AppError(500, "Analysis failed",
+                       "Something went wrong while analysing the image.") from None
+    milliseconds = (time.perf_counter() - startTime) * 1000
 
-    cfg = current_app.config
+    config = request.app.state.config
     saved = True
     try:
-        current_app.extensions["db"].add_prediction(
-            filename=name[:255], label=res["label"], confidence=res["confidence"],
-            prob_ai=res["prob_ai"], threshold=res["threshold"],
-            model_name=res.get("model_name") or cfg["MODEL_NAME"],
-            model_version=str(res.get("model_version") or cfg["MODEL_VERSION"]),
-            width=w, height=h, file_size=len(data), latency_ms=ms)
+        await run_in_threadpool(
+            request.app.state.db.add_prediction,
+            filename=safeName[:255], image_sha256=imageHash,
+            label=result["label"], confidence=result["confidence"],
+            prob_ai=result["prob_ai"], threshold=result["threshold"],
+            model_name=result.get("model_name") or config.MODEL_NAME,
+            model_version=str(result.get("model_version") or config.MODEL_VERSION),
+            width=width, height=height, file_size=len(data), latency_ms=milliseconds)
     except Exception:
         log.exception("Could not write to the database")
         saved = False
 
-    if wants_json():
-        return jsonify({"label": res["label"], "confidence": res["confidence"],
-                        "prob_ai": res["prob_ai"], "threshold": res["threshold"],
-                        "model": cfg["MODEL_NAME"], "model_version": str(cfg["MODEL_VERSION"]),
-                        "filename": name, "width": w, "height": h, "file_size": len(data),
-                        "latency_ms": round(ms, 1), "saved": saved})
-    return render_template("result.html", res=res, name=name, w=w, h=h, saved=saved,
-                           preview=thumbnail_uri(data), model=cfg["MODEL_NAME"],
-                           version=cfg["MODEL_VERSION"])
+    if wantsJson(request):
+        return JSONResponse({
+            "label": result["label"], "confidence": result["confidence"],
+            "prob_ai": result["prob_ai"], "threshold": result["threshold"],
+            "model": config.MODEL_NAME, "model_version": str(config.MODEL_VERSION),
+            "filename": safeName, "sha256": imageHash, "width": width, "height": height,
+            "file_size": len(data), "latency_ms": round(milliseconds, 1), "saved": saved})
+    return render(request, "result.html", {
+        "res": result, "name": safeName, "w": width, "h": height, "saved": saved,
+        "preview": thumbnailUri(data), "model": config.MODEL_NAME,
+        "version": config.MODEL_VERSION})
 
 
-@bp.route("/history")
-def history():
-    rows = current_app.extensions["db"].recent(100)
-    n = len(rows)
-    ai = sum(1 for r in rows if r.label == "AI-generated")
-    stats = {"total": n, "ai": ai, "real": n - ai,
-             "avg": (sum(r.confidence for r in rows) / n * 100) if n else 0}
-    return render_template("history.html", rows=rows, stats=stats)
+@router.get("/history")
+def history(request: Request):
+    rows = request.app.state.db.recent(100)
+    total = len(rows)
+    aiCount = 0
+    confidenceSum = 0.0
+    for row in rows:
+        if row.label == "AI-generated":
+            aiCount = aiCount + 1
+        confidenceSum = confidenceSum + row.confidence
+    average = 0
+    if total > 0:
+        average = confidenceSum / total * 100
+    stats = {"total": total, "ai": aiCount, "real": total - aiCount, "avg": average}
+    return render(request, "history.html", {"rows": rows, "stats": stats})
 
 
-@bp.route("/health")
-def health():
-    db_ok = current_app.extensions["db"].ping()
-    cfg = current_app.config
-    body = {"status": "ok" if db_ok else "degraded", "model_loaded": True,
-            "model": cfg["MODEL_NAME"], "model_version": str(cfg["MODEL_VERSION"]),
-            "threshold": cfg["THRESHOLD"], "database": "ok" if db_ok else "error"}
-    return jsonify(body), (200 if db_ok else 503)
-
-
-@bp.app_errorhandler(404)
-def not_found(e):
-    return fail(404, "Page not found", "That page doesn't exist.")
-
-
-@bp.app_errorhandler(405)
-def bad_method(e):
-    return fail(405, "Not allowed", "That action isn't allowed on this page.")
-
-
-@bp.app_errorhandler(413)
-def too_large(e):
-    mb = current_app.config["MAX_CONTENT_LENGTH"] // (1024 * 1024)
-    return fail(413, "File too large", f"The file is larger than the {mb} MB limit.")
-
-
-@bp.app_errorhandler(500)
-def server_error(e):
-    return fail(500, "Server error", "Something went wrong on our side. Please try again.")
+@router.get("/health")
+def health(request: Request):
+    databaseOk = request.app.state.db.ping()
+    config = request.app.state.config
+    body = {"status": "ok" if databaseOk else "degraded", "model_loaded": True,
+            "model": config.MODEL_NAME, "model_version": str(config.MODEL_VERSION),
+            "threshold": config.THRESHOLD, "database": "ok" if databaseOk else "error"}
+    return JSONResponse(body, status_code=200 if databaseOk else 503)
