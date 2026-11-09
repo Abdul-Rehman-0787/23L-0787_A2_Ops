@@ -1,13 +1,15 @@
 import json
+
 import keras
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-import matplotlib.pyplot as plt
 from PIL import Image
 
 model = keras.models.load_model("models/transfer.keras")
-thr = json.load(open("reports/transfer_threshold.json"))["threshold"]
+with open("reports/transfer_threshold.json", encoding="utf-8") as fh:
+    thr = json.load(fh)["threshold"]
 rescale, base, gap, drop, dense = model.layers[1:6]
 
 df = pd.read_csv("data/splits/test.csv")

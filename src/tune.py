@@ -2,7 +2,8 @@ import keras
 import keras_tuner as kt
 import pandas as pd
 from keras import layers
-from common import make_ds, SEED
+
+from common import SEED, make_ds
 
 SHAPE = (224, 224, 3)
 keras.utils.set_random_seed(SEED)

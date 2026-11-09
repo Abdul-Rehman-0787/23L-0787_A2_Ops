@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+
 from common import make_ds
 
 x, y = next(iter(make_ds("train", training=True)))

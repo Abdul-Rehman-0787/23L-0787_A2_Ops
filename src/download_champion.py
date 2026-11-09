@@ -1,8 +1,11 @@
-import json, shutil
+import json
+import shutil
 from pathlib import Path
+
 import mlflow
-from mlflow import MlflowClient
 from dotenv import load_dotenv
+from mlflow import MlflowClient
+
 load_dotenv()
 
 NAME = "visionguard"
@@ -19,7 +22,8 @@ shutil.copy(src, "models/champion.keras")
 shutil.rmtree(tmp, ignore_errors=True)
 
 thr = run.data.metrics["threshold"]
-json.dump({"model_name": NAME, "version": mv.version, "run_id": mv.run_id,
-           "threshold": thr}, open("models/champion.json", "w"), indent=2)
+with open("models/champion.json", "w", encoding="utf-8") as fh:
+    json.dump({"model_name": NAME, "version": mv.version, "run_id": mv.run_id,
+               "threshold": thr}, fh, indent=2)
 print("Saved models/champion.keras")
 print(f"Put these in .env ->  MODEL_VERSION={mv.version}   THRESHOLD={thr:.2f}")

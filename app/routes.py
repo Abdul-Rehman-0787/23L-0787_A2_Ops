@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import io
+import json
 import logging
 import os
 import time
@@ -401,12 +402,73 @@ def history(request: Request, user: Annotated[object, Depends(requireUser)]):
 
 @router.get("/artist")
 def artistPage(request: Request, user: Annotated[object, Depends(requireUser)]):
-    messages = request.app.state.db.recentChat(user.id, 30)
-    return render(request, "artist.html", {"messages": messages, "maxLength": maxQuestionLength})
+    saved = request.app.state.db.recentChat(user.id, 30)
+    shown = []
+    for message in saved:
+        sources = []
+        if message.sources:
+            try:
+                sources = json.loads(message.sources)
+            except ValueError:
+                sources = []
+        shown.append({"role": message.role, "content": message.content, "sources": sources})
+    return render(request, "artist.html", {"messages": shown, "maxLength": maxQuestionLength})
+
+
+async def findPassages(request, question):
+    """The best document passages for a question. Artist still answers if the search breaks."""
+    try:
+        found = await run_in_threadpool(request.app.state.knowledge.search, question, 3)
+    except Exception:
+        log.exception("Knowledge search failed")
+        return []
+    good = []
+    for hit in found:
+        if hit["score"] >= Config.RAG_MIN_SIMILARITY and len(good) < Config.RAG_PROMPT_PASSAGES:
+            good.append(hit)
+    return good
 
 
 @router.post("/artist/ask")
 async def artistAsk(request: Request, user: Annotated[object, Depends(requireUser)]):
+    try:
+        body = await request.json()
+    except ValueError:
+        body = {}
+    question = ""
+    if isinstance(body, dict):
+        question = str(body.get("question", "")).strip()
+    if question == "":
+        raise AppError(400, "Empty question", "Please type a question for Artist.")
+    if len(question) > maxQuestionLength:
+        raise AppError(400, "Question too long",
+                       "Please keep your question under " + str(maxQuestionLength) + " characters.")
+    if tooManyRequests(request.app.state.redis, "artist-user:" + str(user.id), 20, 600):
+        raise AppError(429, "Slow down", "You have asked many questions. Please wait a few minutes.")
+
+    db = request.app.state.db
+    scans = await run_in_threadpool(db.recent, 5, user.id)
+    memory = await run_in_threadpool(db.recentChat, user.id, 4)
+    hits = await findPassages(request, question)
+    messages = buildMessages(scans, memory, question, hits)
+
+    startTime = time.perf_counter()
+    try:
+        answer = await run_in_threadpool(request.app.state.llm.chat, messages)
+    except LlmError as error:
+        raise AppError(503, "Artist is offline", str(error)) from None
+    seconds = round(time.perf_counter() - startTime, 1)
+
+    sources = []
+    number = 1
+    for hit in hits:
+        sources.append({"n": number, "source": hit["source"], "section": hit["section"],
+                        "snippet": hit["text"][:160], "score": hit["score"]})
+        number = number + 1
+    await run_in_threadpool(db.addChat, user.id, "user", question)
+    await run_in_threadpool(db.addChat, user.id, "assistant", answer, json.dumps(sources))
+    log.info("Artist answered in %.1f s using %d passages", seconds, len(sources))
+    return JSONResponse({"answer": answer, "sources": sources, "seconds": seconds})
     try:
         body = await request.json()
     except ValueError:

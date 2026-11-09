@@ -1,7 +1,8 @@
 import sys
+
 import mlflow
-from mlflow import MlflowClient
 from dotenv import load_dotenv
+from mlflow import MlflowClient
 
 # Load environment variables (MLFLOW_TRACKING_URI, etc.)
 load_dotenv()
@@ -50,5 +51,5 @@ try:
         client.set_registered_model_alias(name, alias, mv.version)
         print(f"Alias '{alias}' -> version {mv.version}")
 
-except Exception as e:
+except (TypeError, ValueError, RuntimeError, OSError) as e:
     print(f"Error during registration: {e}")

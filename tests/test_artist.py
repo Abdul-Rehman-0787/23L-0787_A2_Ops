@@ -75,3 +75,33 @@ def testPromptHasRulesAndLimits():
     assert "not proof" in messages[0]["content"]
     assert "none yet" in messages[0]["content"]
     assert messages[-1] == {"role": "user", "content": "Hello?"}
+
+def testAnswerComesWithSources(client, signIn, llm):
+    signIn()
+    response = ask(client, "Are my images stored?")
+    sources = response.json()["sources"]
+    assert sources[0]["source"] == "faq.md"
+    assert "Images are not stored." in llm.lastMessages[0]["content"]
+    assert "faq.md" in client.get("/artist").text
+
+
+def testWeakPassagesAreNotUsed(client, signIn, llm, knowledge):
+    signIn()
+    knowledge.hits[0]["score"] = 0.1
+    response = ask(client, "something unrelated")
+    assert response.json()["sources"] == []
+    assert "Images are not stored." not in llm.lastMessages[0]["content"]
+
+
+def testArtistStillAnswersWhenSearchBreaks(client, signIn, knowledge):
+    signIn()
+    knowledge.error = True
+    assert ask(client, "hello").status_code == 200
+
+
+def testPromptContainsPassages():
+    hits = [{"source": "faq.md", "section": "Storage", "text": "Images are not stored.", "score": 0.7}]
+    content = buildMessages([], [], "Hello?", hits)[0]["content"]
+    assert "[1] faq.md > Storage" in content
+    assert "Images are not stored." in content
+    assert "No reference passage matched" in buildMessages([], [], "Hello?")[0]["content"]

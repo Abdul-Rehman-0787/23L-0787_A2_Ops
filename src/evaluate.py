@@ -1,10 +1,22 @@
-import argparse, json
-import keras, numpy as np, pandas as pd
+import argparse
+import json
+
+import keras
 import matplotlib.pyplot as plt
-from sklearn.metrics import (accuracy_score, precision_score, recall_score,
-                             f1_score, roc_auc_score, fbeta_score, roc_curve,
-                             confusion_matrix, ConfusionMatrixDisplay)
-from common import make_ds, load_split
+import numpy as np
+from sklearn.metrics import (
+    ConfusionMatrixDisplay,
+    accuracy_score,
+    confusion_matrix,
+    f1_score,
+    fbeta_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+    roc_curve,
+)
+
+from common import load_split, make_ds
 
 p = argparse.ArgumentParser()
 p.add_argument("--model", required=True)          # baseline or transfer
@@ -33,16 +45,18 @@ if not args.test:
     grid = np.linspace(0.05, 0.95, 91)
     scores = [fbeta_score(y, (probs >= t).astype(int), beta=args.beta) for t in grid]
     thr = float(grid[int(np.argmax(scores))])
-    json.dump({"threshold": thr, "beta": args.beta},
-              open(f"reports/{args.model}_threshold.json", "w"))
+    with open(f"reports/{args.model}_threshold.json", "w", encoding="utf-8") as fh:
+        json.dump({"threshold": thr, "beta": args.beta}, fh)
     print(f"Chosen threshold on VALIDATION (beta={args.beta}):", thr)
     print(json.dumps(metrics(thr), indent=2))
 else:
-    thr = json.load(open(f"reports/{args.model}_threshold.json"))["threshold"]
+    with open(f"reports/{args.model}_threshold.json", encoding="utf-8") as fh:
+        thr = json.load(fh)["threshold"]
     m = metrics(thr)
     print(json.dumps(m, indent=2))
     print("For reference, threshold 0.5:", json.dumps(metrics(0.5), indent=2))
-    json.dump(m, open(f"reports/{args.model}_test_metrics.json", "w"))
+    with open(f"reports/{args.model}_test_metrics.json", "w", encoding="utf-8") as fh:
+        json.dump(m, fh)
 
     pred = (probs >= thr).astype(int)
     cm = confusion_matrix(y, pred)

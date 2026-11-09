@@ -1,0 +1,21 @@
+[
+  {"question": "What does a confidence of 90 percent mean?", "expected": ["how_results_work.md"]},
+  {"question": "What is the threshold and how is it used?", "expected": ["how_results_work.md"]},
+  {"question": "Why is my painting flagged as AI?", "expected": ["faq.md", "model_card.md"]},
+  {"question": "Which image formats can I upload?", "expected": ["faq.md"]},
+  {"question": "Do you store my images?", "expected": ["faq.md"]},
+  {"question": "Who can see my results history?", "expected": ["faq.md"]},
+  {"question": "How long is the login code valid?", "expected": ["faq.md"]},
+  {"question": "What happens after five wrong passwords?", "expected": ["faq.md"]},
+  {"question": "How accurate is the model?", "expected": ["model_card.md", "how_results_work.md"]},
+  {"question": "What data was the model trained on?", "expected": ["model_card.md"]},
+  {"question": "What model architecture is used?", "expected": ["model_card.md"]},
+  {"question": "Can I use the verdict as proof in court?", "expected": ["faq.md", "how_results_work.md"]},
+  {"question": "What does ROC-AUC mean?", "expected": ["glossary.md"]},
+  {"question": "What is a false alarm?", "expected": ["glossary.md"]},
+  {"question": "Does Artist see my pictures?", "expected": ["faq.md"]},
+  {"question": "How is the image resized before the model sees it?", "expected": ["model_card.md"]},
+  {"question": "Write me a poem about cats", "expected": []},
+  {"question": "What is the capital of France?", "expected": []},
+  {"question": "Who won the football world cup?", "expected": []}
+]

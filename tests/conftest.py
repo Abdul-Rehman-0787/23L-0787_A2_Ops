@@ -50,10 +50,26 @@ class FakeLlm:
             raise LlmError(self.error)
         return "Fake answer"
 
-    
+
+class FakeKnowledge:
+    def __init__(self):
+        self.error = False
+        self.hits = [{"source": "faq.md", "title": "FAQ", "section": "Are my images stored?",
+                      "text": "Images are not stored.", "score": 0.8}]
+
+    def search(self, question, count=3):
+        if self.error:
+            raise RuntimeError("index is broken")
+        return self.hits
+
 @pytest.fixture
 def mails():
     return []
+
+@pytest.fixture
+def knowledge():
+    return FakeKnowledge()
+
 
 @pytest.fixture
 def llm():
@@ -61,14 +77,15 @@ def llm():
 
 
 @pytest.fixture
-def client(tmp_path, mails, llm):
+def client(tmp_path, mails, llm, knowledge):
     databaseUrl = "sqlite:///" + str(tmp_path / "test.db").replace("\\", "/")
 
     def collectMail(toAddress, subject, bodyText):
         mails.append({"to": toAddress, "subject": subject, "body": bodyText})
 
     app = createApp(databaseUrl=databaseUrl, predictor=FakePredictor(),
-                    redisClient=FakeRedis(), mailSender=collectMail, llm=llm)
+                    redisClient=FakeRedis(), mailSender=collectMail, llm=llm,
+                    knowledge=knowledge)
     return TestClient(app)
 
 

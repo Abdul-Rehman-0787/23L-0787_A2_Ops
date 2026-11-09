@@ -1,11 +1,14 @@
-import argparse, json, shutil
+import argparse
+import json
+import shutil
 from pathlib import Path
+
 import keras
 import matplotlib.pyplot as plt
 import numpy as np
-from common import make_ds, SEED
-from models import (build_baseline, build_transfer, unfreeze_last_block,
-                    trainable_report)
+
+from common import SEED, make_ds
+from models import build_baseline, build_transfer, trainable_report, unfreeze_last_block
 
 p = argparse.ArgumentParser()
 p.add_argument("--model", choices=["baseline", "transfer"], required=True)
@@ -37,15 +40,15 @@ def fit(model, name, epochs):
     hist = h.history
     best = int(np.argmin(hist["val_loss"])) + 1
     print(f"[{name}] best epoch = {best}, val_loss = {min(hist['val_loss']):.4f}")
-    json.dump({"history": hist, "best_epoch": best},
-              open(f"reports/{name}_history.json", "w"))
+    with open(f"reports/{name}_history.json", "w", encoding="utf-8") as fh:
+        json.dump({"history": hist, "best_epoch": best}, fh)
     plot(hist, best, name)
     return min(hist["val_loss"])
 
 
 def plot(hist, best, name):
     ep = range(1, len(hist["loss"]) + 1)
-    fig, ax = plt.subplots(1, 2, figsize=(11, 4))
+    _fig, ax = plt.subplots(1, 2, figsize=(11, 4))
     for a, k, t in zip(ax, ["loss", "accuracy"], ["Loss", "Accuracy"]):
         a.plot(ep, hist[k], label="train")
         a.plot(ep, hist["val_" + k], label="val")

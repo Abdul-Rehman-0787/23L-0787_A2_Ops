@@ -1,5 +1,5 @@
-import numpy as np
 import keras
+import numpy as np
 from keras import layers
 
 SHAPE = (224, 224, 3)

@@ -70,6 +70,7 @@ class ChatMessage(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     role: Mapped[str] = mapped_column(String(10))
     content: Mapped[str] = mapped_column(Text)
+    sources: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcNow)
 
 
@@ -149,9 +150,9 @@ class Database:
             s.commit()
 
 
-    def addChat(self, userId, role, content):
+    def addChat(self, userId, role, content, sources=""):
         with self.Session() as s:
-            s.add(ChatMessage(user_id=userId, role=role, content=content[:4000]))
+            s.add(ChatMessage(user_id=userId, role=role, content=content[:4000], sources=sources))
             s.commit()
 
     def recentChat(self, userId, limit=30):

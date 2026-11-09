@@ -16,7 +16,8 @@ from api.preprocess import resizeBilinear
 load_dotenv()
 floatPath = "api/model.tflite"
 quantPath = "api/model_quant.tflite"
-championInfo = json.load(open("models/champion.json"))
+with open("models/champion.json", encoding="utf-8") as fh:
+    championInfo = json.load(fh)
 threshold = float(championInfo["threshold"])
 
 # 1. Build the quantized model (dynamic-range: weights stored as 8-bit)
@@ -24,7 +25,8 @@ kerasModel = keras.models.load_model("models/champion.keras")
 converter = tf.lite.TFLiteConverter.from_keras_model(kerasModel)
 converter.optimizations = [tf.lite.Optimize.DEFAULT]
 quantBytes = converter.convert()
-open(quantPath, "wb").write(quantBytes)
+with open(quantPath, "wb") as fh:
+    fh.write(quantBytes)
 
 
 def makeInterpreter(path):
@@ -57,7 +59,8 @@ quantProbs = []
 firstPixels = None
 
 for path in paths:
-    rawBytes = open(path, "rb").read()
+    with open(path, "rb") as fh:
+        rawBytes = fh.read()
     decoded = tf.image.decode_image(rawBytes, channels=3, expand_animations=False)
     tfPixels = tf.image.resize(decoded, (height, width)).numpy()
     kerasProbs.append(float(kerasModel(tfPixels[None], training=False).numpy()[0, 0]))
@@ -83,8 +86,7 @@ def scoreModel(probs):
             flips += 1
         gap = abs(probs[i] - kerasProbs[i])
         totalGap += gap
-        if gap > biggestGap:
-            biggestGap = gap
+        biggestGap = max(biggestGap, gap)
     return {"accuracy": correct / len(probs), "auc": roc_auc_score(labels, probs),
             "flips": flips, "meanDiff": totalGap / len(probs), "maxDiff": biggestGap}
 
@@ -102,7 +104,8 @@ def measureLatency(interpreter, runs=50):
 
 
 results = {"keras": scoreModel(kerasProbs), "float": scoreModel(floatProbs), "quant": scoreModel(quantProbs)}
-sizes = {"float": len(open(floatPath, "rb").read()) / 1e6, "quant": len(quantBytes) / 1e6}
+with open(floatPath, "rb") as fh:
+    sizes = {"float": len(fh.read()) / 1e6, "quant": len(quantBytes) / 1e6}
 latency = {"float": measureLatency(floatInterpreter), "quant": measureLatency(quantInterpreter)}
 
 print("threshold", threshold, "| test images", len(paths))

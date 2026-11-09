@@ -1,6 +1,8 @@
 import argparse
-import keras, mlflow
+
+import keras
 import matplotlib.pyplot as plt
+import mlflow
 from dotenv import load_dotenv
 
 p = argparse.ArgumentParser()
@@ -42,5 +44,5 @@ with mlflow.start_run(run_name=f"lr_{a.lr}"):
     mlflow.log_figure(fig, "loss_curve.png")
     try:
         mlflow.keras.log_model(model, "model")
-    except Exception as e:
+    except (TypeError, ValueError, RuntimeError, OSError) as e:
         print("log_model failed:", e)

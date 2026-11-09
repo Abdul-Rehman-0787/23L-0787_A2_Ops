@@ -1,4 +1,5 @@
-import pandas as pd, matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
+import pandas as pd
 from PIL import Image
 
 df = pd.read_csv("data/audit.csv")

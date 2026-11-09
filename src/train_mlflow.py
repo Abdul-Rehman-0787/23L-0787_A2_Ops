@@ -1,13 +1,27 @@
-import argparse, re, subprocess, sys
+import argparse
+import re
+import subprocess
+import sys
 from pathlib import Path
-import keras, mlflow, numpy as np, pandas as pd
+
+import keras
 import matplotlib.pyplot as plt
+import mlflow
+import numpy as np
 from dotenv import load_dotenv
 from keras import layers
-from sklearn.metrics import (accuracy_score, precision_score, recall_score, f1_score,
-                             roc_auc_score, roc_curve, confusion_matrix,
-                             ConfusionMatrixDisplay)
-from common import make_ds, load_split, SEED
+from sklearn.metrics import (
+    ConfusionMatrixDisplay,
+    accuracy_score,
+    confusion_matrix,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+    roc_curve,
+)
+
+from common import SEED, load_split, make_ds
 
 load_dotenv()
 p = argparse.ArgumentParser()
@@ -32,7 +46,7 @@ out.mkdir(parents=True, exist_ok=True)
 def sh(cmd):
     try:
         return subprocess.check_output(cmd, text=True).strip()
-    except Exception:
+    except (FileNotFoundError, subprocess.SubprocessError, OSError):
         return "unknown"
 
 
@@ -75,7 +89,7 @@ def scores(y, probs, thr):
 if a.logging == "autolog":
     try:
         mlflow.tensorflow.autolog(log_models=False)
-    except Exception as e:
+    except (AttributeError, TypeError, ValueError, RuntimeError) as e:
         print("autolog unavailable:", e)
 mlflow.set_experiment(a.experiment)
 
@@ -126,7 +140,7 @@ with mlflow.start_run(run_name=a.run_name) as run:
     mlflow.log_artifact(str(out / "model.keras"), "model_file")
     try:
         mlflow.keras.log_model(model, "model")     # MLflow model format, needed for the registry
-    except Exception as e:
+    except (TypeError, ValueError, RuntimeError, OSError) as e:
         print("mlflow.keras.log_model failed:", e)
     (out / "run_id.txt").write_text(run.info.run_id)
     print("RUN ID:", run.info.run_id, "| threshold:", thr)

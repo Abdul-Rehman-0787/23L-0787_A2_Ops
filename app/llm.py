@@ -18,7 +18,7 @@ class OllamaLlm:
             "messages": messages,
             "stream": False,
             "keep_alive": "10m",
-            "options": {"temperature": 0.2, "num_predict": self.maxTokens, "num_ctx": 2048},
+            "options": {"temperature": 0.2, "num_predict": self.maxTokens, "num_ctx": 4096},
         }
         try:
             response = requests.post(self.url + "/api/chat", json=body, timeout=self.timeout)

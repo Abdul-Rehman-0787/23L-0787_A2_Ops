@@ -31,3 +31,8 @@ class Config:
     OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
     LLM_TIMEOUT = int(os.getenv("LLM_TIMEOUT", "120"))
     LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "300"))
+    CHROMA_PATH = os.getenv("CHROMA_PATH", "instance/chroma")
+    EMBEDDING_CACHE = os.getenv("EMBEDDING_CACHE", ".cache/fastembed")
+    KNOWLEDGE_FOLDER = os.getenv("KNOWLEDGE_FOLDER", "knowledge")
+    RAG_MIN_SIMILARITY = float(os.getenv("RAG_MIN_SIMILARITY", "0.5"))
+    RAG_PROMPT_PASSAGES = int(os.getenv("RAG_PROMPT_PASSAGES", "2"))

@@ -12,6 +12,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from .auth import LoginGuard, OtpService
 from .config import Config
 from .db import Database
+from .knowledge import KnowledgeBase
 from .llm import OllamaLlm
 from .routes import AppError, LoginRequired, failResponse, maxBytes, router, wantsJson
 
@@ -44,7 +45,7 @@ def queueEmail(toAddress, subject, bodyText):
     sendEmail.delay(toAddress, subject, bodyText)
 
 
-def createApp(databaseUrl=None, predictor=None, redisClient=None, mailSender=None, llm=None):
+def createApp(databaseUrl=None, predictor=None, redisClient=None, mailSender=None, llm=None, knowledge=None):
     logging.basicConfig(level=logging.INFO)
     app = FastAPI(title="VisionGuard")
     app.state.config = Config
@@ -56,6 +57,7 @@ def createApp(databaseUrl=None, predictor=None, redisClient=None, mailSender=Non
     app.state.loginGuard = LoginGuard(app.state.redis)
     app.state.sendMail = mailSender or queueEmail
     app.state.llm = llm or buildLlm()
+    app.state.knowledge = knowledge or KnowledgeBase(Config.CHROMA_PATH, Config.EMBEDDING_CACHE, Config.KNOWLEDGE_FOLDER)
 
     staticFolder = os.path.join(os.path.dirname(__file__), "static")
     app.mount("/static", StaticFiles(directory=staticFolder), name="static")

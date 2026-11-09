@@ -1,6 +1,6 @@
-import tensorflow as tf
-import pandas as pd
 import keras
+import pandas as pd
+import tensorflow as tf
 
 IMG_SIZE = (224, 224)
 BATCH = 32

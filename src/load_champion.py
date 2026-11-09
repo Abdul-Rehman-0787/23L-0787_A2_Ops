@@ -1,9 +1,11 @@
 import sys
-import numpy as np
+
 import mlflow
+import numpy as np
+from dotenv import load_dotenv
 from mlflow import MlflowClient
 from PIL import Image
-from dotenv import load_dotenv
+
 load_dotenv()
 
 name = "visionguard"

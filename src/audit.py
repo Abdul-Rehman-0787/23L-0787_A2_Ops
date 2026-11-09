@@ -1,5 +1,6 @@
-import os, hashlib
+import hashlib
 from pathlib import Path
+
 import pandas as pd
 from PIL import Image
 
@@ -27,7 +28,7 @@ for cls_dir in sorted(p for p in ROOT.iterdir() if p.is_dir()):
             with Image.open(f) as im:       # re-open: verify() invalidates it
                 row["width"], row["height"] = im.size
                 row["mode"], row["format"] = im.mode, im.format
-        except Exception:
+        except (OSError, ValueError):
             row["corrupt"] = True
         rows.append(row)
 

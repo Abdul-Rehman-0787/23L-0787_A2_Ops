@@ -22,3 +22,9 @@ def testUsers(tmp_path):
     db.recordLogin(user.id)
     assert db.findUserById(user.id).is_verified is True
     assert db.findUserByEmail("nobody@b.com") is None
+
+def testChatSourcesColumn(tmp_path):
+    columns = []
+    for column in inspect(makeDb(tmp_path).engine).get_columns("chat_messages"):
+        columns.append(column["name"])
+    assert "sources" in columns

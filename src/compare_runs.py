@@ -1,6 +1,7 @@
-import mlflow, pandas as pd
 import matplotlib.pyplot as plt
+import mlflow
 from dotenv import load_dotenv
+
 load_dotenv()
 
 runs = mlflow.search_runs(experiment_names=["visionguard"])

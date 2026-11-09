@@ -1,12 +1,15 @@
 import json
+
+import keras
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-import keras
 from PIL import Image
+
 from api.preprocess import resizeBilinear
 
-threshold = json.load(open("models/champion.json"))["threshold"]
+with open("models/champion.json", encoding="utf-8") as fh:
+    threshold = json.load(fh)["threshold"]
 kerasModel = keras.models.load_model("models/champion.keras")
 interpreter = tf.lite.Interpreter(model_path="api/model.tflite")
 interpreter.allocate_tensors()
@@ -28,7 +31,8 @@ flips = {name: 0 for name in names}
 paths = pd.read_csv("data/splits/test.csv")["path"].tolist()
 
 for path in paths:
-    rawBytes = open(path, "rb").read()
+    with open(path, "rb") as fh:
+        rawBytes = fh.read()
     decoded = tf.image.decode_image(rawBytes, channels=3, expand_animations=False)
     tfPixels = tf.image.resize(decoded, (height, width)).numpy()
     kerasProb = float(kerasModel(tfPixels[None], training=False).numpy()[0, 0])
