@@ -36,3 +36,6 @@ class Config:
     KNOWLEDGE_FOLDER = os.getenv("KNOWLEDGE_FOLDER", "knowledge")
     RAG_MIN_SIMILARITY = float(os.getenv("RAG_MIN_SIMILARITY", "0.5"))
     RAG_PROMPT_PASSAGES = int(os.getenv("RAG_PROMPT_PASSAGES", "2"))
+    NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+    NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
+    NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "")

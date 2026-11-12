@@ -18,3 +18,22 @@ def sendEmail(toAddress, subject, bodyText):
     message.set_content(bodyText)
     with smtplib.SMTP(Config.SMTP_HOST, Config.SMTP_PORT, timeout=20) as server:
         server.send_message(message)
+
+graphHolder = {"store": None}
+
+
+def getGraphStore():
+    if graphHolder["store"] is None:
+        from .graph import GraphStore
+        store = GraphStore(Config.NEO4J_URI, Config.NEO4J_USER, Config.NEO4J_PASSWORD)
+        if store.enabled:
+            store.setup()
+        graphHolder["store"] = store
+    return graphHolder["store"]
+
+
+@celeryApp.task(name="record_graph", autoretry_for=(Exception,), retry_backoff=5, max_retries=5)
+def recordGraph(analysis):
+    store = getGraphStore()
+    if store.enabled:
+        store.recordAnalysis(analysis)

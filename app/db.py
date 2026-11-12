@@ -99,8 +99,10 @@ class Database:
 
     def add_prediction(self, **fields):
         with self.Session() as s:
-            s.add(Prediction(**fields))
+            row = Prediction(**fields)
+            s.add(row)
             s.commit()
+            return {"id": row.id, "created_at": row.created_at}
 
     def recent(self, limit=100, userId=None):
         with self.Session() as s:

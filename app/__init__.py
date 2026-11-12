@@ -12,6 +12,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from .auth import LoginGuard, OtpService
 from .config import Config
 from .db import Database
+from .graph import GraphStore
 from .knowledge import KnowledgeBase
 from .llm import OllamaLlm
 from .routes import AppError, LoginRequired, failResponse, maxBytes, router, wantsJson
@@ -44,8 +45,12 @@ def queueEmail(toAddress, subject, bodyText):
     from .tasks import sendEmail
     sendEmail.delay(toAddress, subject, bodyText)
 
+def queueGraph(analysis):
+    """Hands the lineage update to the Celery worker."""
+    from .tasks import recordGraph
+    recordGraph.delay(analysis)
 
-def createApp(databaseUrl=None, predictor=None, redisClient=None, mailSender=None, llm=None, knowledge=None):
+def createApp(databaseUrl=None, predictor=None, redisClient=None, mailSender=None, llm=None, knowledge=None, graph=None, graphWriter=None):
     logging.basicConfig(level=logging.INFO)
     app = FastAPI(title="VisionGuard")
     app.state.config = Config
@@ -58,6 +63,9 @@ def createApp(databaseUrl=None, predictor=None, redisClient=None, mailSender=Non
     app.state.sendMail = mailSender or queueEmail
     app.state.llm = llm or buildLlm()
     app.state.knowledge = knowledge or KnowledgeBase(Config.CHROMA_PATH, Config.EMBEDDING_CACHE, Config.KNOWLEDGE_FOLDER)
+    app.state.graph = graph or GraphStore(Config.NEO4J_URI, Config.NEO4J_USER, Config.NEO4J_PASSWORD)
+    app.state.recordGraph = graphWriter or queueGraph
+
 
     staticFolder = os.path.join(os.path.dirname(__file__), "static")
     app.mount("/static", StaticFiles(directory=staticFolder), name="static")

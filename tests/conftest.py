@@ -62,9 +62,31 @@ class FakeKnowledge:
             raise RuntimeError("index is broken")
         return self.hits
 
+
+class FakeGraph:
+    """Stands in for Neo4j in tests."""
+
+    def __init__(self):
+        self.enabled = True
+
+
+class GraphWriter:
+    """Stands in for the Celery task that updates the graph."""
+
+    def __init__(self):
+        self.calls = []
+        self.error = False
+
+    def __call__(self, analysis):
+        if self.error:
+            raise RuntimeError("queue is down")
+        self.calls.append(analysis)
+
+
 @pytest.fixture
 def mails():
     return []
+
 
 @pytest.fixture
 def knowledge():
@@ -77,7 +99,17 @@ def llm():
 
 
 @pytest.fixture
-def client(tmp_path, mails, llm, knowledge):
+def graphStore():
+    return FakeGraph()
+
+
+@pytest.fixture
+def graphWriter():
+    return GraphWriter()
+
+
+@pytest.fixture
+def client(tmp_path, mails, llm, knowledge, graphStore, graphWriter):
     databaseUrl = "sqlite:///" + str(tmp_path / "test.db").replace("\\", "/")
 
     def collectMail(toAddress, subject, bodyText):
@@ -85,7 +117,7 @@ def client(tmp_path, mails, llm, knowledge):
 
     app = createApp(databaseUrl=databaseUrl, predictor=FakePredictor(),
                     redisClient=FakeRedis(), mailSender=collectMail, llm=llm,
-                    knowledge=knowledge)
+                    knowledge=knowledge, graph=graphStore, graphWriter=graphWriter)
     return TestClient(app)
 
 
