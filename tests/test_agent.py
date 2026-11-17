@@ -51,7 +51,7 @@ def testRouting():
     assert pickTools("Have I analysed the same picture twice?") == ["docs", "graph"]
     assert pickTools("How many images have I analysed?") == ["docs", "stats"]
     assert pickTools("How many images did I analyse twice?") == ["docs", "graph", "stats"]
-    assert pickTools("Why do image 295 and 296 give different results?") == ["docs", "compare", "graph"]
+    assert pickTools("Why do image 295 and 296 give different results?") == ["docs", "compare"]
 
 
 def testFindAnalysisIds():
@@ -211,17 +211,19 @@ def testFollowUpAfterARefusalIsRefused(client, signIn, knowledge):
     knowledge.hits[0]["score"] = 0.3
     assert ask(client, "tell me more").json()["kind"] == "refusal"
 
-
-def testCompareTwoAnalyses(client, signIn, llm):
+def testCompareTwoAnalysesIsAnsweredFromTheNumbers(client, signIn, llm):
     signIn()
     addPrediction(client, 1, "pic.png", "a" * 64, "2", "Real", 0.46)
     addPrediction(client, 1, "pic.png", "a" * 64, "2-quant", "AI-generated", 0.50)
     response = ask(client, "Why do image 1 and 2 give different results?")
-    assert response.json()["tools"] == ["docs", "compare", "graph"]
-    text = llm.lastMessages[0]["content"]
-    assert "same image file" in text
-    assert "v2 and v2-quant" in text
-    assert "only 4 percentage points apart" in text
+    answer = response.json()["answer"]
+    assert response.json()["kind"] == "direct"
+    assert response.json()["tools"] == ["compare"]
+    assert "same image file" in answer
+    assert "v2 and v2-quant" in answer
+    assert "only 4 percentage points apart" in answer
+    assert "not proof" in answer
+    assert llm.lastMessages is None
 
 
 def testCompareCannotSeeOtherUsersAnalyses(client, signIn):
@@ -233,12 +235,19 @@ def testCompareCannotSeeOtherUsersAnalyses(client, signIn):
     assert "alice-secret.png" not in answer
     assert "was not found" in answer
 
-
-def testSingleAnalysisExplainsMargin(client, signIn, llm):
+def testSingleAnalysisIsExplainedFromTheNumbers(client, signIn, llm):
     signIn()
     files = {"image": ("red.png", makePng(), "image/png")}
     client.post("/predict", files=files, headers=headers)
-    ask(client, "Why was my 1 image labelled Real?")
-    text = llm.lastMessages[0]["content"]
-    assert "38 percentage points below the threshold" in text
-    assert "well away from the threshold" in text
+    response = ask(client, "Why was my 1 image labelled Real?")
+    answer = response.json()["answer"]
+    assert response.json()["kind"] == "direct"
+    assert "38 percentage points below the threshold" in answer
+    assert "well away from the threshold" in answer
+    assert llm.lastMessages is None
+
+def testWrongPremiseIsCorrected(client, signIn):
+    signIn()
+    addPrediction(client, 1, "pic.png", "a" * 64, "2", "AI-generated", 0.56)
+    answer = ask(client, "why was my 1 image labeled as real").json()["answer"]
+    assert "but it was labelled AI-generated" in answer

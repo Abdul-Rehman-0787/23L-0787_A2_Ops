@@ -34,7 +34,8 @@ LIMIT 5
 verdictChangesQuery = """
 MATCH (u:User {id: $userId})-[:SUBMITTED]->(a1:Analysis)-[:OF]->(i:Image)
       <-[:OF]-(a2:Analysis)<-[:SUBMITTED]-(u)
-MATCH (a1)-[:USED]->(m1:ModelVersion), (a2)-[:USED]->(m2:ModelVersion)
+MATCH (a1)-[:USED]->(m1:ModelVersion)
+MATCH (a2)-[:USED]->(m2:ModelVersion)
 WHERE a1.id < a2.id AND m1.key <> m2.key AND a1.label <> a2.label
 RETURN i.sha256 AS sha, a1.filename AS fileName,
        m1.version AS versionA, a1.label AS labelA, a1.probAi AS probA,

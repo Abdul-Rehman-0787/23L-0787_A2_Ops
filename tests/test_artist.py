@@ -55,10 +55,10 @@ def testQuestionValidation(client, signIn):
 def testArtistOfflineMessage(client, signIn, llm):
     signIn()
     llm.error = "Artist is offline. Please start Ollama and try again."
-    response = ask(client, "hello")
+    response = ask(client, "What does my result mean?")
     assert response.status_code == 503
     assert "offline" in response.json()["error"]
-    assert "hello" not in client.get("/artist").text
+    assert "What does my result mean?" not in client.get("/artist").text
 
 
 def testClearChat(client, signIn):

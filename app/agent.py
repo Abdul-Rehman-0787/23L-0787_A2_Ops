@@ -126,12 +126,40 @@ def findAnalysisIds(question):
     return ids[:4]
 
 
+ownWords = ["my", "mine", "latest", "last", "recent"]
+trustText = ("A verdict is an estimate, not proof. If two results disagree, or a score is close "
+             "to the threshold, treat the image as an unclear case and check it by hand.")
+
+
+def usesOwnData(question):
+    for word in splitWords(question):
+        if word in ownWords:
+            return True
+    return False
+
+
+def premiseNote(question, rows):
+    """Corrects a wrong assumption, such as asking why an AI-labelled image was called Real."""
+    words = splitWords(question)
+    saysReal = "real" in words
+    saysAi = "ai" in words or "fake" in words or "generated" in words
+    notes = []
+    for row in rows:
+        if saysReal and not saysAi and row.label != "Real":
+            notes.append("Note: you asked about #" + str(row.id) + " being labelled Real, "
+                         "but it was labelled " + row.label + ".")
+        elif saysAi and not saysReal and row.label == "Real":
+            notes.append("Note: you asked about #" + str(row.id) + " being labelled AI, "
+                         "but it was labelled Real.")
+    return notes
+
+
 def pickTools(question):
     """Plain rules decide where to look. Documents are always searched."""
+    if len(findAnalysisIds(question)) > 0:
+        return ["docs", "compare"]
     text = question.lower()
     tools = ["docs"]
-    if len(findAnalysisIds(question)) > 0:
-        tools.append("compare")
     if hasAny(text, repeatPhrases) or hasAny(text, changePhrases):
         tools.append("graph")
     if (hasAny(text, countPhrases) or hasAny(text, recentPhrases)) and hasAny(text, ownDataPhrases):
@@ -268,10 +296,12 @@ def compareFacts(ids, rows):
     return facts
 
 
-def directAnswer(facts):
+def directAnswer(facts, closing=""):
     text = "Here is what I found in your account:"
     for fact in facts:
         text = text + "\n- " + fact
+    if closing != "":
+        text = text + "\n\n" + closing
     return text
 
 
@@ -295,16 +325,19 @@ def buildAgent(db, knowledge, graph, llm, minScore, maxPassages):
 
     def searchDocs(state):
         question = state["question"]
+        previous = previousQuestion(state["memory"])
+        followUp = previous != "" and isFollowUp(question)
         ownScore = 0.0
         hits = []
         try:
             found = knowledge.search(question, 3)
             if len(found) > 0:
                 ownScore = found[0]["score"]
-            previous = previousQuestion(state["memory"])
-            if previous != "" and isFollowUp(question):
+            extra = 0
+            if followUp:
                 found = knowledge.search(previous + " " + question, 3)
-            hits = pickHits(found, minScore, maxPassages)
+                extra = 1
+            hits = pickHits(found, minScore, maxPassages + extra)
         except Exception:
             log.exception("Knowledge search failed")
         return {"hits": hits, "bestScore": ownScore, "done": state["done"] + ["docs"]}
@@ -312,57 +345,67 @@ def buildAgent(db, knowledge, graph, llm, minScore, maxPassages):
     def askCompare(state):
         ids = findAnalysisIds(state["question"])
         rows = db.predictionsByIds(state["userId"], ids)
-        facts = list(state["facts"]) + compareFacts(ids, rows)
+        facts = (list(state["facts"]) + premiseNote(state["question"], rows)
+                 + compareFacts(ids, rows))
         return {"facts": facts, "done": state["done"] + ["compare"]}
-
-    def askGraph(state):
-        facts = list(state["facts"])
-        if not graph.enabled:
-            facts.append("The history graph is switched off, so repeated images and "
-                         "model-version changes are not available.")
-        else:
-            text = state["question"].lower()
-            askRepeat = hasAny(text, repeatPhrases)
-            askChange = hasAny(text, changePhrases)
-            if not askRepeat and not askChange:
-                askRepeat = True
-                askChange = True
-            userId = state["userId"]
-            facts = facts + graphFacts(graph.repeatedImages(userId), graph.verdictChanges(userId),
-                                       graph.versionsUsed(userId), askRepeat, askChange)
-        return {"facts": facts, "done": state["done"] + ["graph"]}
-
-    def askStats(state):
-        facts = list(state["facts"]) + statsFacts(db.userStats(state["userId"]))
-        return {"facts": facts, "done": state["done"] + ["stats"]}
-
-    def gate(state):
-        hasPrevious = previousQuestion(state["memory"]) != ""
-        return {"onTopic": isOnTopic(state["question"], state["bestScore"], minScore, hasPrevious)}
 
     def afterGate(state):
         if not state["onTopic"]:
             return "refuse"
-        if len(state["facts"]) > 0 and not wantsExplanation(state["question"]):
+        if len(state["facts"]) > 0 and ("compare" in state["tools"]
+                                         or not wantsExplanation(state["question"])):
             return "direct"
         return "write"
 
+    def gate(state):
+        previous = previousQuestion(state["memory"])
+        return {"onTopic": isOnTopic(state["question"], state.get("bestScore", 0.0),
+                                     minScore, previous != "")}
+
     def greet(state):
-        return {"answer": greetingText, "kind": "greeting", "tools": [], "hits": []}
+        return {"answer": greetingText, "kind": "greeting", "tools": []}
 
     def refuse(state):
-        return {"answer": refusalText, "kind": "refusal", "tools": ["scope"], "hits": []}
+        return {"answer": refusalText, "kind": "refusal", "tools": ["scope"]}
+
+    def askGraph(state):
+        facts = list(state["facts"])
+        if not getattr(graph, "enabled", True):
+            facts.append("The graph lookup is switched off for this deployment.")
+            return {"facts": facts, "done": state["done"] + ["graph"]}
+        repeated = graph.repeatedImages(state["userId"])
+        changes = graph.verdictChanges(state["userId"])
+        versions = graph.versionsUsed(state["userId"])
+        facts.extend(graphFacts(repeated, changes, versions))
+        return {"facts": facts, "done": state["done"] + ["graph"]}
+
+    def askStats(state):
+        stats = db.userStats(state["userId"])
+        return {"facts": list(state["facts"]) + statsFacts(stats),
+                "done": state["done"] + ["stats"]}
 
     def direct(state):
         tools = []
         for name in state["tools"]:
             if name != "docs":
                 tools.append(name)
-        return {"answer": directAnswer(state["facts"]), "kind": "direct", "tools": tools, "hits": []}
+        closing = ""
+        if "compare" in state["tools"]:
+            closing = trustText
+        return {"answer": directAnswer(state["facts"], closing), "kind": "direct",
+                "tools": tools, "hits": []}
 
     def writeAnswer(state):
-        messages = buildMessages(state["scans"], state["memory"], state["question"],
-                                 state["hits"], state["facts"])
+        question = state["question"]
+        followUp = isFollowUp(question) and previousQuestion(state["memory"]) != ""
+        scans = None
+        hasRecentScans = state.get("scans") is not None and len(state["scans"]) > 0
+        if len(state["facts"]) > 0 or usesOwnData(question) or hasRecentScans:
+            scans = state["scans"]
+        memory = []
+        if followUp:
+            memory = state["memory"]
+        messages = buildMessages(scans, memory, question, state["hits"], state["facts"], followUp)
         return {"answer": llm.chat(messages)}
 
     workflow = StateGraph(AgentState)
