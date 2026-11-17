@@ -17,3 +17,6 @@ The model was trained on about 1,000 images, so it is a small model. On 147 held
 
 ## Borderline results
 Scores close to the threshold, for example a probability of AI between 0.35 and 0.65, are borderline. For borderline results, treat the verdict as a reason to look closer, and do not rely on it.
+
+## What the model looks at
+The model only sees the picture's pixels, after the image is stretched to 224 by 224. It does not read the file name, the file size, the camera data (EXIF) or any text about where the image came from. It was trained on about 1,000 labelled examples to notice visual patterns that were more common in the AI-generated examples than in the real ones, such as strongly saturated colours, smooth or painterly textures, dramatic lighting and portrait collages. It has not learned a rule about how AI images are made. Heat-map checks on test images showed that it often focuses on detailed or dramatic regions, such as flags, buildings, patterned clothing or a mountain peak, and not always on faces. Because of this it makes typical mistakes: human-made paintings, illustrations and collages are often flagged as AI, and natural-looking AI portraits that resemble stock photos are often called Real.

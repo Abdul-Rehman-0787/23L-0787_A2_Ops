@@ -88,15 +88,19 @@ def testAnswerComesWithSources(client, signIn, llm):
 def testWeakPassagesAreNotUsed(client, signIn, llm, knowledge):
     signIn()
     knowledge.hits[0]["score"] = 0.1
-    response = ask(client, "something unrelated")
+    response = ask(client, "What does my result mean?")
     assert response.json()["sources"] == []
     assert "Images are not stored." not in llm.lastMessages[0]["content"]
+
+
 
 
 def testArtistStillAnswersWhenSearchBreaks(client, signIn, knowledge):
     signIn()
     knowledge.error = True
-    assert ask(client, "hello").status_code == 200
+    response = ask(client, "What does my result mean?")
+    assert response.status_code == 200
+    assert response.json()["answer"] == "Fake answer"
 
 
 def testPromptContainsPassages():

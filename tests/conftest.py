@@ -54,10 +54,12 @@ class FakeLlm:
 class FakeKnowledge:
     def __init__(self):
         self.error = False
+        self.queries = []
         self.hits = [{"source": "faq.md", "title": "FAQ", "section": "Are my images stored?",
                       "text": "Images are not stored.", "score": 0.8}]
 
     def search(self, question, count=3):
+        self.queries.append(question)
         if self.error:
             raise RuntimeError("index is broken")
         return self.hits
@@ -68,6 +70,20 @@ class FakeGraph:
 
     def __init__(self):
         self.enabled = True
+        self.repeated = []
+        self.changes = []
+        self.versions = []
+        self.userIds = []
+
+    def repeatedImages(self, userId):
+        self.userIds.append(userId)
+        return self.repeated
+
+    def verdictChanges(self, userId):
+        return self.changes
+
+    def versionsUsed(self, userId):
+        return self.versions
 
 
 class GraphWriter:

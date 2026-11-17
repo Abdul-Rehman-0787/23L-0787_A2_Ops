@@ -57,6 +57,15 @@
     bubble.appendChild(box);
   }
 
+  function addTools(bubble, tools) {
+    if (!tools || tools.length === 0) { return; }
+    const names = {docs: "documents", graph: "history graph", stats: "your statistics"};
+    const box = document.createElement("div");
+    box.className = "sources";
+    box.textContent = "Checked: " + tools.map(function (t) { return names[t] || t; }).join(", ");
+    bubble.appendChild(box);
+  } 
+
   askForm.addEventListener("submit", async function (event) {
     event.preventDefault();
     const question = askInput.value.trim();
@@ -73,7 +82,7 @@
       });
       const data = await response.json();
       waiting.textContent = response.ok ? data.answer : data.error;
-      if (response.ok) { addSources(waiting, data.sources); }
+      if (response.ok) { addTools(waiting, data.tools); addSources(waiting, data.sources); }
     } catch (error) {
       waiting.textContent = "Could not reach the server. Please try again.";
     }

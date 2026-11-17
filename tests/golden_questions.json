@@ -15,7 +15,11 @@
   {"question": "What is a false alarm?", "expected": ["glossary.md"]},
   {"question": "Does Artist see my pictures?", "expected": ["faq.md"]},
   {"question": "How is the image resized before the model sees it?", "expected": ["model_card.md"]},
+  {"question": "Why do two model versions give different results for the same image?", "expected": ["model_versions.md"]},
+  {"question": "Which model version should I trust?", "expected": ["model_versions.md"]},
+  {"question": "What is the difference between version 2 and 2-quant?", "expected": ["model_versions.md"]},
   {"question": "Write me a poem about cats", "expected": []},
   {"question": "What is the capital of France?", "expected": []},
-  {"question": "Who won the football world cup?", "expected": []}
+  {"question": "Who won the football world cup?", "expected": []},
+  {"question": "What does the model look at when it decides?", "expected": ["how_results_work.md"]}
 ]

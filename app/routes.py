@@ -15,7 +15,7 @@ from fastapi.templating import Jinja2Templates
 from PIL import Image
 from redis.exceptions import RedisError
 
-from .artist import buildMessages, maxQuestionLength
+from .artist import maxQuestionLength
 from .auth import (
     AuthError,
     blockToken,
@@ -439,20 +439,6 @@ def artistPage(request: Request, user: Annotated[object, Depends(requireUser)]):
     return render(request, "artist.html", {"messages": shown, "maxLength": maxQuestionLength})
 
 
-async def findPassages(request, question):
-    """The best document passages for a question. Artist still answers if the search breaks."""
-    try:
-        found = await run_in_threadpool(request.app.state.knowledge.search, question, 3)
-    except Exception:
-        log.exception("Knowledge search failed")
-        return []
-    good = []
-    for hit in found:
-        if hit["score"] >= Config.RAG_MIN_SIMILARITY and len(good) < Config.RAG_PROMPT_PASSAGES:
-            good.append(hit)
-    return good
-
-
 @router.post("/artist/ask")
 async def artistAsk(request: Request, user: Annotated[object, Depends(requireUser)]):
     try:
@@ -470,31 +456,34 @@ async def artistAsk(request: Request, user: Annotated[object, Depends(requireUse
     if tooManyRequests(request.app.state.redis, "artist-user:" + str(user.id), 20, 600):
         raise AppError(429, "Slow down", "You have asked many questions. Please wait a few minutes.")
 
-    db = request.app.state.db
-    scans = await run_in_threadpool(db.recent, 5, user.id)
-    memory = await run_in_threadpool(db.recentChat, user.id, 4)
-    hits = await findPassages(request, question)
-    messages = buildMessages(scans, memory, question, hits)
-
     startTime = time.perf_counter()
     try:
-        answer = await run_in_threadpool(request.app.state.llm.chat, messages)
+        final = await run_in_threadpool(
+            request.app.state.agent.invoke, {"question": question, "userId": user.id})
     except LlmError as error:
         raise AppError(503, "Artist is offline", str(error)) from None
     seconds = round(time.perf_counter() - startTime, 1)
 
+    answer = final["answer"]
+    kind = final.get("kind", "answer")
+    tools = final.get("tools", [])
     sources = []
     number = 1
-    for hit in hits:
+    for hit in final.get("hits", []):
         sources.append({"n": number, "source": hit["source"], "section": hit["section"],
                         "snippet": hit["text"][:160], "score": hit["score"]})
         number = number + 1
-    await run_in_threadpool(db.addChat, user.id, "user", question)
-    await run_in_threadpool(db.addChat, user.id, "assistant", answer, json.dumps(sources))
-    log.info("Artist answered in %.1f s using %d passages", seconds, len(sources))
-    return JSONResponse({"answer": answer, "sources": sources, "seconds": seconds})
-    
+    if kind in ["answer", "direct"]:                 # greetings and refusals are not remembered
+        db = request.app.state.db
+        await run_in_threadpool(db.addChat, user.id, "user", question)
+        await run_in_threadpool(db.addChat, user.id, "assistant", answer, json.dumps(sources))
+    log.info("Artist (%s) answered in %.1f s using tools %s and %d passages",
+             kind, seconds, tools, len(sources))
+    return JSONResponse({"answer": answer, "sources": sources, "tools": tools,
+                         "kind": kind, "seconds": seconds})
 
+
+    
 @router.post("/artist/clear")
 def artistClear(request: Request, user: Annotated[object, Depends(requireUser)]):
     request.app.state.db.deleteChat(user.id)

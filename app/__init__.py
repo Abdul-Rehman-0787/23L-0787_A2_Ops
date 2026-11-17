@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from .agent import buildAgent
 from .auth import LoginGuard, OtpService
 from .config import Config
 from .db import Database
@@ -29,7 +30,7 @@ def buildPredictor():
     return Predictor(Config.MODEL_PATH, Config.THRESHOLD)
 
 def buildLlm():
-    return OllamaLlm(Config.OLLAMA_URL, Config.OLLAMA_MODEL, Config.LLM_TIMEOUT, Config.LLM_MAX_TOKENS)
+    return OllamaLlm(Config.OLLAMA_URL, Config.OLLAMA_MODEL, Config.LLM_TIMEOUT,Config.LLM_MAX_TOKENS, Config.LLM_CONTEXT)
 
 def pickSecret(value, name):
     if len(value) >= 32:
@@ -65,6 +66,7 @@ def createApp(databaseUrl=None, predictor=None, redisClient=None, mailSender=Non
     app.state.knowledge = knowledge or KnowledgeBase(Config.CHROMA_PATH, Config.EMBEDDING_CACHE, Config.KNOWLEDGE_FOLDER)
     app.state.graph = graph or GraphStore(Config.NEO4J_URI, Config.NEO4J_USER, Config.NEO4J_PASSWORD)
     app.state.recordGraph = graphWriter or queueGraph
+    app.state.agent = buildAgent(app.state.db, app.state.knowledge, app.state.graph, app.state.llm,Config.RAG_MIN_SIMILARITY, Config.RAG_PROMPT_PASSAGES)
 
 
     staticFolder = os.path.join(os.path.dirname(__file__), "static")

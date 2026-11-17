@@ -9,8 +9,10 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    case,
     create_engine,
     delete,
+    func,
     select,
     text,
 )
@@ -170,6 +172,31 @@ class Database:
         with self.Session() as s:
             s.execute(delete(ChatMessage).where(ChatMessage.user_id == userId))
             s.commit()
+
+
+    def userStats(self, userId):
+        """Counts for one user: total, AI-generated, Real, first and latest time, average confidence."""
+        with self.Session() as s:
+            row = s.execute(
+                select(func.count(Prediction.id),
+                       func.sum(case((Prediction.label == "AI-generated", 1), else_=0)),
+                       func.min(Prediction.created_at),
+                       func.max(Prediction.created_at),
+                       func.avg(Prediction.confidence))
+                .where(Prediction.user_id == userId)).one()
+        total = row[0] or 0
+        aiCount = int(row[1] or 0)
+        return {"total": total, "ai": aiCount, "real": total - aiCount,
+                "first": row[2], "last": row[3], "avgConfidence": float(row[4] or 0)}
+
+    
+    def predictionsByIds(self, userId, ids):
+        """Only this user's own analyses are returned, even if other numbers are asked for."""
+        if len(ids) == 0:
+            return []
+        with self.Session() as s:
+            query = select(Prediction).where(Prediction.user_id == userId, Prediction.id.in_(ids))
+            return list(s.scalars(query))
 
 
     def ping(self):
