@@ -1,0 +1,18 @@
+Changes made:
+
+1. Restored the missing workflow nodes in app/agent.py so the LangGraph agent initializes again:
+   - askGraph
+   - askStats
+   - gate
+   - greet
+   - refuse
+
+2. Fixed the scope gate logic so it returns the correct branch after checking topic relevance and facts, while preserving refusal/direct/write flow.
+
+3. Re-enabled the graph and stats tool branches expected by the VisionGuard agent, including graph-off graceful behavior and stats fact generation.
+
+4. Kept user data private by ensuring prompt context only includes the current user’s recent scans and chat, not another user’s data.
+
+5. Fixed the prompt-context bug where the model could miss a user’s uploaded analyses when the question was not phrased with a “my/latest/recent” keyword. The agent now includes recent scans whenever the logged-in user has any uploaded image history.
+
+6. Verified the expected features still work via the project test suite, including graph Q&A, stats Q&A, greeting/refusal handling, and the Artist privacy checks.
