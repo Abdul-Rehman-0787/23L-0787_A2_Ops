@@ -106,12 +106,13 @@ class KnowledgeBase:
 
     def rebuild(self):
         """Throw the old index away and index every document again. Returns the passage count."""
+        from chromadb.errors import NotFoundError
         chunks = makeChunks(self.docsFolder)
         with self.lock:
             client = self.getClient()
             try:
                 client.get_collection(name=collectionName)
-            except ValueError:
+            except (ValueError, NotFoundError):
                 pass                       # first run: there was nothing to delete
             else:
                 client.delete_collection(collectionName)
