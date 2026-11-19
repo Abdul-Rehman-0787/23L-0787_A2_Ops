@@ -31,8 +31,7 @@ def middle(values):
 def high(values):
     ordered = sorted(values)
     position = int(len(ordered) * 0.95)
-    if position > len(ordered) - 1:
-        position = len(ordered) - 1
+    position = min(position, len(ordered) - 1)
     return ordered[position]
 
 
