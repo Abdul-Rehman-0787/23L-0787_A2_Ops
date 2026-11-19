@@ -1,6 +1,7 @@
 .venv/
 __pycache__/
 .env
+local.env
 data/processed/
 *.keras
 mlruns/
@@ -10,6 +11,9 @@ mlflow_toy.db
 mlruns/
 tuner_results/
 reports/runs/
+
+api_v1
+
 
 instance/
 models/_tmp/

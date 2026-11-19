@@ -99,7 +99,8 @@ class GroqLlm:
 
 def makeLlm(config):
     """Picks the language model from LLM_PROVIDER ("ollama" locally, "groq" when hosted)."""
-    if config.LLM_PROVIDER == "groq":
+    provider = str(getattr(config, "LLM_PROVIDER", "ollama")).strip().lower()
+    if provider == "groq":
         return GroqLlm(config.GROQ_API_KEY, config.GROQ_MODEL, config.LLM_TIMEOUT,
                        config.LLM_MAX_TOKENS, config.GROQ_URL)
     return OllamaLlm(config.OLLAMA_URL, config.OLLAMA_MODEL, config.LLM_TIMEOUT,

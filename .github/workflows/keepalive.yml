@@ -1,0 +1,14 @@
+name: keepalive
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # every 10 min (UTC)
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping URL 1
+        run: curl -fsS --max-time 60 "https://two3l-0787-a2-ops-1.onrender.com/health" || true
+      - name: Ping URL 2
+        run: curl -fsS --max-time 60 "https://visionguard-vkzn.onrender.com/health" || true

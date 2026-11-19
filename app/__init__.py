@@ -15,7 +15,7 @@ from .config import Config
 from .db import Database
 from .graph import GraphStore
 from .knowledge import KnowledgeBase
-from .llm import OllamaLlm
+from .llm import makeLlm
 from .routes import AppError, LoginRequired, failResponse, maxBytes, router, wantsJson
 
 
@@ -30,7 +30,7 @@ def buildPredictor():
     return Predictor(Config.MODEL_PATH, Config.THRESHOLD)
 
 def buildLlm():
-    return OllamaLlm(Config.OLLAMA_URL, Config.OLLAMA_MODEL, Config.LLM_TIMEOUT,Config.LLM_MAX_TOKENS, Config.LLM_CONTEXT)
+    return makeLlm(Config)
 
 def pickSecret(value, name):
     if len(value) >= 32:
