@@ -1,0 +1,88 @@
+# VisionGuard platform web app (FastAPI + Artist) on Render.
+#
+# The product is several small free services that behave like one site:
+#   visionguard-platform  (this file)   web app, Artist, login
+#   visionguard-vkzn      (existing)    model API, called over HTTPS with an API key
+#   Neon / Supabase                     Postgres history
+#   Upstash                             Redis: login codes, sessions, rate limits
+#   Neo4j Aura Free                     history graph
+#   Groq                                language model for Artist
+#   Brevo                               login-code emails over HTTPS
+#
+# Deploys are triggered by GitHub Actions (deploy hook), not by Render itself,
+# so nothing ships unless lint, tests and the Docker build passed.
+services:
+  - type: web
+    name: visionguard-platform
+    runtime: docker
+    plan: free
+    branch: deployed
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: false
+    envVars:
+      # --- generated once by Render ---
+      - key: JWT_SECRET
+        generateValue: true
+      - key: OTP_SECRET
+        generateValue: true
+
+      # --- hosted behaviour ---
+      - key: COOKIE_SECURE
+        value: "1"
+      - key: DEV_LOG_CODES
+        value: "0"
+      - key: CELERY_EAGER
+        value: "1"            # no worker on the free tier: tasks run inside the web process
+      - key: MAX_UPLOAD_MB
+        value: "5"
+
+      # --- inference: call the model API service ---
+      - key: INFERENCE_MODE
+        value: remote
+      - key: API_URL
+        sync: false           # https://visionguard-vkzn.onrender.com
+      - key: API_KEY
+        sync: false
+      - key: API_TIMEOUT
+        value: "90"           # covers the model API's cold start
+      - key: MODEL_NAME
+        value: visionguard
+      - key: MODEL_VERSION
+        value: "2"
+      - key: THRESHOLD
+        value: "0.48"
+
+      # --- data services ---
+      - key: DATABASE_URL     # postgresql+psycopg2://USER:PASS@HOST/DB?sslmode=require
+        sync: false
+      - key: REDIS_URL        # Upstash: rediss://default:PASS@HOST:6379
+        sync: false
+      - key: NEO4J_URI        # Aura: neo4j+s://XXXXXXXX.databases.neo4j.io
+        sync: false
+      - key: NEO4J_USER
+        value: neo4j
+      - key: NEO4J_PASSWORD
+        sync: false
+
+      # --- Artist ---
+      - key: LLM_PROVIDER
+        value: groq
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: llama-3.1-8b-instant
+      - key: LLM_TIMEOUT
+        value: "60"
+      - key: LLM_MAX_TOKENS
+        value: "300"
+      - key: RAG_MIN_SIMILARITY
+        value: "0.55"
+
+      # --- email (HTTPS API; Render free blocks SMTP ports) ---
+      - key: MAIL_PROVIDER
+        value: brevo
+      - key: BREVO_API_KEY
+        sync: false
+      - key: MAIL_FROM        # must be a sender verified in Brevo, e.g. VisionGuard <you@gmail.com>
+        sync: false
