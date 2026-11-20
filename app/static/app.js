@@ -111,6 +111,8 @@
     // The SERVER validates the file (type, size, decoding) and runs the model.
     const body = new FormData();
     body.append("image", file);
+    const modelSelect = $("#modelSelect");           // present only when two models are offered
+    if (modelSelect) body.append("model", modelSelect.value);
     if (controller) controller.abort();
     controller = new AbortController();
     const started = performance.now();

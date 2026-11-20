@@ -29,6 +29,15 @@ def buildPredictor():
     log.info("Inference mode: LOCAL (%s)", Config.MODEL_PATH)
     return Predictor(Config.MODEL_PATH, Config.THRESHOLD)
 
+def buildSecondPredictor():
+    """The optional second model API. Returns None when MODEL2_API_URL is not set."""
+    if not Config.MODEL2_API_URL:
+        return None
+    from .remote import RemotePredictor
+    logging.getLogger("visionguard").info("Second model: REMOTE -> %s", Config.MODEL2_API_URL)
+    return RemotePredictor(Config.MODEL2_API_URL, Config.MODEL2_API_KEY, Config.API_TIMEOUT)
+
+
 def buildLlm():
     return makeLlm(Config)
 
@@ -57,6 +66,13 @@ def createApp(databaseUrl=None, predictor=None, redisClient=None, mailSender=Non
     app.state.config = Config
     app.state.db = Database(databaseUrl or Config.DATABASE_URL)
     app.state.predictor = predictor or buildPredictor()
+    # The models a user can pick on the upload page. "primary" is always present.
+    app.state.predictors = {"primary": app.state.predictor}
+    app.state.modelChoices = [("primary", Config.MODEL_LABEL)]
+    secondPredictor = None if predictor is not None else buildSecondPredictor()
+    if secondPredictor is not None:
+        app.state.predictors["secondary"] = secondPredictor
+        app.state.modelChoices.append(("secondary", Config.MODEL2_LABEL))
     app.state.redis = redisClient or redis.Redis.from_url(Config.REDIS_URL, decode_responses=True)
     app.state.jwtSecret = pickSecret(Config.JWT_SECRET, "JWT_SECRET")
     app.state.otp = OtpService(app.state.redis, pickSecret(Config.OTP_SECRET, "OTP_SECRET"))

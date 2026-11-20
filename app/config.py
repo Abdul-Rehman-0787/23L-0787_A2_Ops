@@ -9,6 +9,7 @@ class Config:
     MODEL_PATH = os.getenv("MODEL_PATH", "models/champion.keras")
     MODEL_NAME = os.getenv("MODEL_NAME", "visionguard")
     MODEL_VERSION = os.getenv("MODEL_VERSION", "unknown")
+    MODEL_LABEL = os.getenv("MODEL_LABEL", "Model v" + MODEL_VERSION)
     THRESHOLD = float(os.getenv("THRESHOLD", "0.5"))
     DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///instance/visionguard.db")
     MAX_CONTENT_LENGTH = int(os.getenv("MAX_UPLOAD_MB", "5")) * 1024 * 1024
@@ -16,10 +17,14 @@ class Config:
     API_URL = os.getenv("API_URL", "")
     API_KEY = os.getenv("API_KEY", "")
     API_TIMEOUT = int(os.getenv("API_TIMEOUT", "90"))
+    # Optional second model API. Leave MODEL2_API_URL empty to offer only one model.
+    MODEL2_API_URL = os.getenv("MODEL2_API_URL", "")
+    MODEL2_API_KEY = os.getenv("MODEL2_API_KEY", "")
+    MODEL2_LABEL = os.getenv("MODEL2_LABEL", "Second model")
     REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/1")
     # 1 = run background tasks inside the web process (hosted free tier has no worker)
-    CELERY_EAGER = os.getenv("CELERY_EAGER", "0") == "1"
+    CELERY_EAGER = os.getenv("CELERY_EAGER", "0").strip().lower() in ("1", "true", "yes")
     JWT_SECRET = os.getenv("JWT_SECRET", "")
     JWT_MINUTES = int(os.getenv("JWT_MINUTES", "60"))
     OTP_SECRET = os.getenv("OTP_SECRET", "")
@@ -31,7 +36,7 @@ class Config:
     MAIL_FROM = os.getenv("MAIL_FROM", "VisionGuard <noreply@visionguard.local>")
     COOKIE_SECURE = os.getenv("COOKIE_SECURE", "0") == "1"
     DEV_LOG_CODES = os.getenv("DEV_LOG_CODES", "0") == "1"
-    LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama")
+    LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq")   # "groq" (default) or "ollama" (local only)
     OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
     OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
     GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")

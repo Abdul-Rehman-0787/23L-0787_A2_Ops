@@ -14,6 +14,18 @@
 
     <!-- VIEW 1: drop zone -->
     <div id="dropView" class="zone-wrap view-in">
+    <!-- Model choice: shown only when a second model is configured -->
+    {% if modelChoices|length > 1 %}
+    <div class="model-picker glass">
+      <label for="modelSelect">{{ icon('cpu', 15) }} Model</label>
+      <select id="modelSelect" name="model" aria-label="Choose the model">
+        {% for value, label in modelChoices %}
+        <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+
       <div class="zone-glow"></div>
       <!-- UPGRADE: Added the data-endpoint attribute below -->
       <div id="zone" class="zone" role="button" tabindex="0" aria-label="Choose or drop an image" data-endpoint="{{ url_for('main.analyze') }}">
@@ -37,6 +49,13 @@
       </div>
       <noscript>
         <form class="glass noscript-form" action="{{ url_for('main.analyze') }}" method="post" enctype="multipart/form-data">
+          {% if modelChoices|length > 1 %}
+          <select name="model" aria-label="Choose the model">
+            {% for value, label in modelChoices %}
+            <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+          {% endif %}
           <input type="file" name="image" accept=".jpg,.jpeg,.png" required>
           <button class="btn btn-glow" type="submit">Analyse</button>
         </form>

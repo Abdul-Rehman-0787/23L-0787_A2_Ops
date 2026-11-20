@@ -46,6 +46,15 @@ services:
         sync: false
       - key: API_TIMEOUT
         value: "90"           # covers the model API's cold start
+      - key: MODEL_LABEL
+        value: "Model v2 (recommended)"
+      # --- optional second model API (leave MODEL2_API_URL empty to offer one model) ---
+      - key: MODEL2_API_URL
+        sync: false           # https://visionguard-model-v1.onrender.com
+      - key: MODEL2_API_KEY
+        sync: false
+      - key: MODEL2_LABEL
+        value: "Model v1 (baseline)"
       - key: MODEL_NAME
         value: visionguard
       - key: MODEL_VERSION
