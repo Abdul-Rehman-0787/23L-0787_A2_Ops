@@ -30,6 +30,7 @@ from .auth import (
 from .config import Config
 from .icons import icon
 from .llm import LlmError
+from .mailing import buildCodeEmail
 
 router = APIRouter()
 log = logging.getLogger("visionguard")
@@ -130,6 +131,7 @@ def render(request, pageName, context, code=200):
     request.path = request.url.path                      # Flask-style names for the templates
     request.endpoint = pathToEndpoint.get(request.url.path, "")
     context["user"] = safeUser(request)
+    context.setdefault("modelChoices", getattr(request.app.state, "modelChoices", []))
     return templates.TemplateResponse(request, pageName, context, status_code=code)
 
 
@@ -194,15 +196,22 @@ def limitAttempts(request, key, limit, seconds):
         raise AuthError("Too many attempts. Please wait a few minutes and try again.", 429)
 
 
+def sendWithHtml(send, email, subject, text, html):
+    """Sends the HTML version too. Senders that only take three arguments get the text only."""
+    try:
+        send(email, subject, text, html)
+    except TypeError:
+        send(email, subject, text)
+
+
 def sendCode(request, email, userId):
     """Make a one-time code and queue the email that carries it."""
     code = request.app.state.otp.issueCode(email)
     if Config.DEV_LOG_CODES:
         log.info("DEV ONLY: the code for %s is %s", email, code)
-    text = ("Your VisionGuard code is " + code + ". It expires in 5 minutes.\n"
-            "If you did not ask for it, you can ignore this email.")
+    subject, text, html = buildCodeEmail(code)
     try:
-        request.app.state.sendMail(email, "Your VisionGuard login code", text)
+        sendWithHtml(request.app.state.sendMail, email, subject, text, html)
     except Exception:
         log.exception("Could not queue the email")
         raise AuthError("We could not send the email right now. "
@@ -359,6 +368,7 @@ async def analyze(
     request: Request,
     user: Annotated[object, Depends(requireUser)],
     image: Annotated[UploadFile | None, File()] = None,
+    model: Annotated[str, Form()] = "primary",
 ):
     fileName = ""
     data = b""
@@ -367,10 +377,13 @@ async def analyze(
         data = await image.read(maxBytes + 1)            # stops reading just past the limit
     safeName, width, height = checkUpload(fileName, data)
     imageHash = hashlib.sha256(data).hexdigest()
+    predictor = request.app.state.predictors.get((model or "primary").strip())
+    if predictor is None:
+        raise AppError(400, "Model not available", "Please choose one of the listed models.")
 
     startTime = time.perf_counter()
     try:
-        result = await run_in_threadpool(request.app.state.predictor.predict, data)
+        result = await run_in_threadpool(predictor.predict, data)
     except Exception:
         log.exception("Inference failed")
         raise AppError(500, "Analysis failed",
@@ -399,13 +412,15 @@ async def analyze(
         return JSONResponse({
             "label": result["label"], "confidence": result["confidence"],
             "prob_ai": result["prob_ai"], "threshold": result["threshold"],
-            "model": config.MODEL_NAME, "model_version": str(config.MODEL_VERSION),
+            "model": result.get("model_name") or config.MODEL_NAME,
+            "model_version": str(result.get("model_version") or config.MODEL_VERSION),
             "filename": safeName, "sha256": imageHash, "width": width, "height": height,
             "file_size": len(data), "latency_ms": round(milliseconds, 1), "saved": saved})
     return render(request, "result.html", {
         "res": result, "name": safeName, "w": width, "h": height, "saved": saved,
-        "preview": thumbnailUri(data), "model": config.MODEL_NAME,
-        "version": config.MODEL_VERSION})
+        "preview": thumbnailUri(data),
+        "model": result.get("model_name") or config.MODEL_NAME,
+        "version": result.get("model_version") or config.MODEL_VERSION})
 
 
 @router.get("/history")

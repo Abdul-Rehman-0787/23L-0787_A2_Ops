@@ -50,10 +50,10 @@ def pickSecret(value, name):
     return secrets.token_urlsafe(48)
 
 
-def queueEmail(toAddress, subject, bodyText):
+def queueEmail(toAddress, subject, bodyText, htmlBody=None):
     """Hands the email to the Celery worker, so the page does not wait for the mail server."""
     from .tasks import sendEmail
-    sendEmail.delay(toAddress, subject, bodyText)
+    sendEmail.delay(toAddress, subject, bodyText, htmlBody)
 
 def queueGraph(analysis):
     """Hands the lineage update to the Celery worker."""
