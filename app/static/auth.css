@@ -21,8 +21,9 @@
 .sources { margin-top: 8px; padding-top: 8px; font-size: 0.8rem; opacity: 0.75;border-top: 1px solid rgba(255, 255, 255, 0.15); }
 
 /* model picker on the upload page */
-.model-picker { display: flex; align-items: center; justify-content: center; gap: 12px; max-width: 420px; margin: 0 auto 16px; padding: 10px 16px; border-radius: 14px; }
+.model-picker { position: relative; z-index: 3; display: flex; align-items: center; justify-content: center; gap: 12px; max-width: 420px; margin: 0 auto 16px; padding: 10px 16px; border-radius: 14px; }
 .model-picker label { display: inline-flex; align-items: center; gap: 6px; font-size: 0.9rem; opacity: 0.85; white-space: nowrap; }
 .model-picker select, .noscript-form select { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 10px; font: inherit; color: inherit; cursor: pointer; border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(255, 255, 255, 0.06); }
 .model-picker select:focus, .noscript-form select:focus { outline: 2px solid #5eb0ff; border-color: transparent; }
 .model-picker select option, .noscript-form select option { background: #111827; color: #fff; }
+.zone-glow { pointer-events: none; }   /* the decorative glow must never block clicks */
