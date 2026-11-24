@@ -1,8 +1,0 @@
-flask
-werkzeug
-sqlalchemy
-python-dotenv
-pillow
-psycopg2-binary==2.9.10
-requests==2.34.2
-gunicorn==22.0.0
