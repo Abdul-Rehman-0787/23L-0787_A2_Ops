@@ -40,7 +40,7 @@ class Config:
     OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
     OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
     GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-    GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+    GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
     GROQ_URL = os.getenv("GROQ_URL", "https://api.groq.com/openai/v1/chat/completions")
     LLM_TIMEOUT = int(os.getenv("LLM_TIMEOUT", "120"))
     LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "300"))
@@ -50,6 +50,8 @@ class Config:
     RAG_MIN_SIMILARITY = float(os.getenv("RAG_MIN_SIMILARITY", "0.5"))
     RAG_PROMPT_PASSAGES = int(os.getenv("RAG_PROMPT_PASSAGES", "2"))
     NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
-    NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
+    # Aura's credentials file calls these NEO4J_USERNAME and NEO4J_DATABASE; NEO4J_USER still works.
+    NEO4J_USER = os.getenv("NEO4J_USERNAME") or os.getenv("NEO4J_USER", "neo4j")
     NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "")
+    NEO4J_DATABASE = os.getenv("NEO4J_DATABASE", "neo4j")
     LLM_CONTEXT = int(os.getenv("LLM_CONTEXT", "2048"))

@@ -1,6 +1,7 @@
 import logging
 import os
 import secrets
+import threading
 from urllib.parse import quote
 
 import redis
@@ -56,8 +57,12 @@ def queueEmail(toAddress, subject, bodyText, htmlBody=None):
     sendEmail.delay(toAddress, subject, bodyText, htmlBody)
 
 def queueGraph(analysis):
-    """Hands the lineage update to the Celery worker."""
+    """Hands the lineage update to the Celery worker. With no worker (CELERY_EAGER), it runs in a
+    background thread, so a slow or sleeping Neo4j never delays the page."""
     from .tasks import recordGraph
+    if Config.CELERY_EAGER:
+        threading.Thread(target=recordGraph.apply, kwargs={"args": [analysis]}, daemon=True).start()
+        return
     recordGraph.delay(analysis)
 
 def createApp(databaseUrl=None, predictor=None, redisClient=None, mailSender=None, llm=None, knowledge=None, graph=None, graphWriter=None):
@@ -80,7 +85,8 @@ def createApp(databaseUrl=None, predictor=None, redisClient=None, mailSender=Non
     app.state.sendMail = mailSender or queueEmail
     app.state.llm = llm or buildLlm()
     app.state.knowledge = knowledge or KnowledgeBase(Config.CHROMA_PATH, Config.EMBEDDING_CACHE, Config.KNOWLEDGE_FOLDER)
-    app.state.graph = graph or GraphStore(Config.NEO4J_URI, Config.NEO4J_USER, Config.NEO4J_PASSWORD)
+    app.state.graph = graph or GraphStore(Config.NEO4J_URI, Config.NEO4J_USER, Config.NEO4J_PASSWORD,
+                                          Config.NEO4J_DATABASE)
     app.state.recordGraph = graphWriter or queueGraph
     app.state.agent = buildAgent(app.state.db, app.state.knowledge, app.state.graph, app.state.llm,Config.RAG_MIN_SIMILARITY, Config.RAG_PROMPT_PASSAGES)
 

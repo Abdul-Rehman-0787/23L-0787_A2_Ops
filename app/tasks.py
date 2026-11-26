@@ -65,7 +65,7 @@ graphHolder = {"store": None}
 def getGraphStore():
     if graphHolder["store"] is None:
         from .graph import GraphStore
-        store = GraphStore(Config.NEO4J_URI, Config.NEO4J_USER, Config.NEO4J_PASSWORD)
+        store = GraphStore(Config.NEO4J_URI, Config.NEO4J_USER, Config.NEO4J_PASSWORD, Config.NEO4J_DATABASE)
         if store.enabled:
             store.setup()
         graphHolder["store"] = store
@@ -74,6 +74,10 @@ def getGraphStore():
 
 @celeryApp.task(name="record_graph", autoretry_for=(Exception,), retry_backoff=5, max_retries=5)
 def recordGraph(analysis):
-    store = getGraphStore()
-    if store.enabled:
-        store.recordAnalysis(analysis)
+    try:
+        store = getGraphStore()
+        if store.enabled:
+            store.recordAnalysis(analysis)
+    except Exception:
+        log.exception("Neo4j write failed")      # eager mode hides task errors, so log them here
+        raise

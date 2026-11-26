@@ -69,8 +69,10 @@ services:
         sync: false
       - key: NEO4J_URI        # Aura: neo4j+s://XXXXXXXX.databases.neo4j.io
         sync: false
-      - key: NEO4J_USER
-        value: neo4j
+      - key: NEO4J_USERNAME   # from the Aura credentials file (often the Instance ID)
+        sync: false
+      - key: NEO4J_DATABASE     # from the Aura credentials file (often the Instance ID)
+        sync: false
       - key: NEO4J_PASSWORD
         sync: false
 
@@ -80,7 +82,7 @@ services:
       - key: GROQ_API_KEY
         sync: false
       - key: GROQ_MODEL
-        value: llama-3.1-8b-instant
+        value: openai/gpt-oss-20b
       - key: LLM_TIMEOUT
         value: "60"
       - key: LLM_MAX_TOKENS

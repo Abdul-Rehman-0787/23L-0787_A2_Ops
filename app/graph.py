@@ -1,4 +1,5 @@
 import logging
+import os
 
 log = logging.getLogger("visionguard")
 
@@ -57,23 +58,27 @@ clearQuery = "MATCH (n) WHERE n:User OR n:Image OR n:Analysis OR n:ModelVersion 
 class GraphStore:
     """The lineage map in Neo4j. Reading fails softly, so the app works without it."""
 
-    def __init__(self, uri, user, password):
+    def __init__(self, uri, user, password, database=None):
         self.uri = uri
         self.user = user
         self.password = password
+        # Some Aura instances name their database after the instance ID, not "neo4j".
+        self.database = database or os.getenv("NEO4J_DATABASE", "neo4j")
         self.driver = None
         self.enabled = password != ""
 
     def getDriver(self):
         if self.driver is None:
             from neo4j import GraphDatabase
-            self.driver = GraphDatabase.driver(self.uri, auth=(self.user, self.password))
+            self.driver = GraphDatabase.driver(
+                self.uri, auth=(self.user, self.password), connection_timeout=5,
+                connection_acquisition_timeout=8, max_transaction_retry_time=5)
         return self.driver
 
     def run(self, query, params=None):
         """Runs one query and returns a list of dictionaries. Raises if Neo4j is unreachable."""
         records, _, _ = self.getDriver().execute_query(
-            query, parameters_=params or {}, database_="neo4j")
+            query, parameters_=params or {}, database_=self.database)
         rows = []
         for record in records:
             rows.append(record.data())
