@@ -1,0 +1,7 @@
+onnxruntime
+numpy
+pillow
+huggingface_hub
+fastapi
+uvicorn
+python-multipart
