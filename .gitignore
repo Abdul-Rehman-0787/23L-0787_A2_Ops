@@ -12,7 +12,6 @@ mlruns/
 tuner_results/
 reports/runs/
 
-api_v1
 
 
 instance/
